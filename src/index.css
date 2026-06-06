@@ -5,9 +5,19 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  cursor: default;
 }
 
-code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+*, *::before, *::after {
+  cursor: inherit !important;
+}
+
+a, button, .ant-btn, .ant-menu-item,
+.ant-select-selector, .ant-pagination-item,
+.ant-dropdown-trigger, .ant-tabs-tab {
+  cursor: pointer !important;
+}
+
+input, textarea, .ant-input, .ant-input-affix-wrapper input {
+  cursor: text !important;
 }
