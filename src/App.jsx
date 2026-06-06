@@ -16,7 +16,6 @@ import Coupons from "./pages/Coupons";
 import Customers from "./pages/Customers";
 import CustomerDetail from "./pages/Customers/Customerdetail.jsx";
 import Cities from "./pages/Cities";
-
 export default function App() {
   return (
     <BrowserRouter>
