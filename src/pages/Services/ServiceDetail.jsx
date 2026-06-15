@@ -38,6 +38,7 @@ import {
   MessageOutlined,
   ClearOutlined,
   SafetyCertificateOutlined,
+  CarOutlined,
 } from "@ant-design/icons";
 import { useNavigate, useParams } from "react-router-dom";
 import api from "../../api/axios";
@@ -69,7 +70,6 @@ export default function ServiceDetail() {
   const [assignForm] = Form.useForm();
   const [savingAssign, setSavingAssign] = useState(false);
 
-  // ── Available providers for assign modal ──
   const [availableProviders, setAvailableProviders] = useState([]);
   const [loadingAvailable, setLoadingAvailable] = useState(false);
 
@@ -242,7 +242,6 @@ export default function ServiceDetail() {
     }
   };
 
-  // ── Open assign modal & fetch available providers ──
   const openAssignModal = () => {
     fetchAvailableProviders();
     setAssignModal(true);
@@ -666,10 +665,46 @@ export default function ServiceDetail() {
                   {service.details}
                 </Text>
               )}
-              <div style={{ marginTop: 8 }}>
+              {/* ── visit_cost + date row ── */}
+              <div
+                style={{
+                  marginTop: 10,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 16,
+                  flexWrap: "wrap",
+                }}
+              >
                 <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 12 }}>
                   تاريخ الإضافة: {fmt(service.date)}
                 </Text>
+                {service.visit_cost != null ? (
+                  <Tag
+                    icon={<CarOutlined />}
+                    color="blue"
+                    style={{ borderRadius: 6, fontWeight: 600, fontSize: 12 }}
+                  >
+                    تكلفة الزيارة:{" "}
+                    {Number(service.visit_cost).toLocaleString("ar-SA")} ر.س
+                  </Tag>
+                ) : (
+                  <Tag
+                    color="default"
+                    style={{ borderRadius: 6, fontSize: 12 }}
+                  >
+                    بدون تكلفة زيارة
+                  </Tag>
+                )}
+                {service.warranty && (
+                  <Tag
+                    icon={<SafetyCertificateOutlined />}
+                    color="green"
+                    style={{ borderRadius: 6, fontSize: 12 }}
+                  >
+                    ضمان: {service.warranty.duration_value}{" "}
+                    {DURATION_LABELS[service.warranty.duration_type]}
+                  </Tag>
+                )}
               </div>
             </div>
           </Space>

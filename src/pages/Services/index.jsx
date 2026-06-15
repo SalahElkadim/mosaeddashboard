@@ -34,6 +34,7 @@ import {
   SafetyCertificateOutlined,
   LoadingOutlined,
   InboxOutlined,
+  CarOutlined,
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
@@ -42,8 +43,8 @@ const { Search } = Input;
 const { Text } = Typography;
 const { Option } = Select;
 
-const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
-const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+const CLOUD_NAME = process.env.REACT_APP_CLOUDINARY_CLOUD_NAME;
+const UPLOAD_PRESET = process.env.REACT_APP_CLOUDINARY_UPLOAD_PRESET;
 
 const DURATION_LABELS = { day: "يوم", month: "شهر", year: "سنة" };
 
@@ -96,7 +97,6 @@ export default function Services() {
   }, [isActiveFilter]);
 
   const handleImageUpload = async ({ file }) => {
-    // Validate size (5MB)
     if (file.size > 5 * 1024 * 1024) {
       message.error("حجم الصورة يجب أن يكون أقل من 5MB");
       return false;
@@ -127,7 +127,7 @@ export default function Services() {
     } finally {
       setUploadingImage(false);
     }
-    return false; // prevent antd auto-upload
+    return false;
   };
 
   const openModal = (service = null) => {
@@ -140,6 +140,7 @@ export default function Services() {
         image: service.image,
         date: service.date,
         is_active: service.is_active,
+        visit_cost: service.visit_cost ?? undefined,
         specialization:
           service.specialization?.id ?? service.specialization ?? undefined,
         warranty_duration_value: service.warranty?.duration_value ?? undefined,
@@ -274,6 +275,23 @@ export default function Services() {
           </Tag>
         ) : (
           <Tag color="default">غير محدد</Tag>
+        ),
+    },
+    {
+      title: "تكلفة الزيارة",
+      dataIndex: "visit_cost",
+      key: "visit_cost",
+      render: (v) =>
+        v != null ? (
+          <Tag
+            color="blue"
+            icon={<CarOutlined />}
+            style={{ borderRadius: 6, fontWeight: 600 }}
+          >
+            {Number(v).toLocaleString("ar-SA")} ر.س
+          </Tag>
+        ) : (
+          <Tag color="default">لا يوجد</Tag>
         ),
     },
     {
@@ -473,7 +491,7 @@ export default function Services() {
           dataSource={filtered}
           loading={loading}
           rowKey="id"
-          scroll={{ x: 800 }}
+          scroll={{ x: 900 }}
           pagination={{
             pageSize: 10,
             showSizeChanger: false,
@@ -483,9 +501,7 @@ export default function Services() {
         />
       </Card>
 
-      {/* ══════════════════════════════════════════
-          Modal: إضافة / تعديل خدمة
-      ══════════════════════════════════════════ */}
+      {/* Modal */}
       <Modal
         title={
           <span style={{ fontFamily: "'Cairo', sans-serif", fontWeight: 700 }}>
@@ -549,8 +565,7 @@ export default function Services() {
             <Input.TextArea rows={3} placeholder="وصف تفصيلي للخدمة..." />
           </Form.Item>
 
-          {/* ── Image Upload ── */}
-          {/* hidden field to store the URL */}
+          {/* hidden URL field */}
           <Form.Item name="image" style={{ display: "none" }}>
             <Input />
           </Form.Item>
@@ -646,7 +661,45 @@ export default function Services() {
             </Col>
           </Row>
 
-          {/* ── بيانات الضمان ── */}
+          {/* ── تكلفة الزيارة ── */}
+          <Divider
+            orientation="right"
+            orientationMargin={0}
+            style={{ color: "#888", fontSize: 13 }}
+          >
+            <Space>
+              <CarOutlined style={{ color: "#1677ff" }} />
+              تكلفة الزيارة (اختياري)
+            </Space>
+          </Divider>
+
+          <Form.Item
+            name="visit_cost"
+            label="تكلفة الزيارة"
+            extra="اتركه فارغاً إذا كانت الخدمة بدون تكلفة زيارة"
+            rules={[
+              {
+                validator: (_, value) => {
+                  if (value !== undefined && value !== null && value < 0)
+                    return Promise.reject(
+                      "تكلفة الزيارة لا يمكن أن تكون سالبة"
+                    );
+                  return Promise.resolve();
+                },
+              },
+            ]}
+          >
+            <InputNumber
+              min={0}
+              style={{ width: "100%" }}
+              placeholder="مثال: 50"
+              formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}
+              parser={(v) => v?.replace(/,*/g, "")}
+              addonAfter="ر.س"
+            />
+          </Form.Item>
+
+          {/* ── الضمان ── */}
           <Divider
             orientation="right"
             orientationMargin={0}
