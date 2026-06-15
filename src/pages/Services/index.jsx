@@ -43,8 +43,8 @@ const { Search } = Input;
 const { Text } = Typography;
 const { Option } = Select;
 
-const CLOUD_NAME = process.env.REACT_APP_CLOUDINARY_CLOUD_NAME;
-const UPLOAD_PRESET = process.env.REACT_APP_CLOUDINARY_UPLOAD_PRESET;
+const CLOUD_NAME = process.env.VITE_CLOUDINARY_CLOUD_NAME;
+const UPLOAD_PRESET = process.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
 const DURATION_LABELS = { day: "يوم", month: "شهر", year: "سنة" };
 
