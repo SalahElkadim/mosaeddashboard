@@ -79,7 +79,7 @@ const uploadToCloudinary = async (file) => {
 export default function ProviderDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-
+  console.log("ProviderDetail rendered, id:", id);
   const [provider, setProvider] = useState(null);
   const [reviews, setReviews] = useState([]);
   const [reviewStats, setReviewStats] = useState({
@@ -87,6 +87,10 @@ export default function ProviderDetail() {
     total_reviews: 0,
   });
   const [works, setWorks] = useState([]);
+  // Previous Work modal
+  const [workModalOpen, setWorkModalOpen] = useState(false);
+  const [workUploading, setWorkUploading] = useState(false);
+  const [workForm] = Form.useForm();
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState("");
 
@@ -137,7 +141,11 @@ export default function ProviderDetail() {
       }
       if (wRes.status === "fulfilled") {
         const d = wRes.value.data;
+        console.log("works raw data:", d);
+        console.log("works status:", wRes.status);
         setWorks(Array.isArray(d) ? d : d.results ?? []);
+      } else {
+        console.log("works FAILED:", wRes.reason);
       }
     } catch {
       message.error("فشل تحميل بيانات مزود الخدمة");
@@ -178,8 +186,10 @@ export default function ProviderDetail() {
   };
 
   useEffect(() => {
+    console.log("useEffect fired");
+    console.log("id value:", id);
     fetchAll();
-    fetchCities(); // ← جيب المدن عند أول تحميل للصفحة
+    fetchCities();
   }, [id]);
 
   // ─── Provider Actions ─────────────────────────
@@ -360,7 +370,7 @@ export default function ProviderDetail() {
         await api.post(`/accounts/admin/providers/${id}/addresses/`, payload);
         message.success("تم إضافة العنوان");
       }
-      
+
       setAddrModalOpen(false);
       setRegions([]);
       setSelectedCity(undefined);
@@ -422,7 +432,70 @@ export default function ProviderDetail() {
       setReviewSaving(false);
     }
   };
+  // ─── Previous Work Actions ─────────────────────────
+  const handleDeleteWork = async (workId) => {
+    try {
+      await api.delete(`/accounts/previousworks/${workId}/`);
+      message.success("تم حذف العمل");
+      fetchAll();
+    } catch {
+      message.error("فشل حذف العمل");
+    }
+  };
 
+  const handleAddWork = async () => {
+    try {
+      const values = await workForm.validateFields();
+      const file = values.media?.file;
+      if (!file) return message.error("اختر ملفاً أولاً");
+
+      setWorkUploading(true);
+
+      const mediaType = file.type.startsWith("video/") ? "video" : "image";
+      const resourceType = mediaType === "video" ? "video" : "image";
+
+      // رفع على Cloudinary
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+      formData.append("folder", "previous_works");
+
+      const res = await fetch(
+        `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${resourceType}/upload`,
+        { method: "POST", body: formData }
+      );
+      if (!res.ok) throw new Error("فشل رفع الملف");
+      const data = await res.json();
+
+      const media_url = data.secure_url;
+      const thumbnail_url =
+        mediaType === "video"
+          ? data.secure_url
+              .replace(/\.[^/.]+$/, ".jpg")
+              .replace("/video/", "/video/so_0/")
+          : null;
+
+      // أرسل للـ backend
+      await api.post(`/accounts/previousworks/`, {
+        title: values.title || "",
+        description: values.description || "",
+        media_type: mediaType,
+        media_url,
+        thumbnail_url,
+        provider: id,
+      });
+
+      message.success("تم إضافة العمل بنجاح");
+      setWorkModalOpen(false);
+      workForm.resetFields();
+      fetchAll();
+    } catch (e) {
+      if (e?.errorFields) return;
+      message.error("فشل الإضافة، حاول مرة أخرى");
+    } finally {
+      setWorkUploading(false);
+    }
+  };
   // ─── Guards ───────────────────────────────────
   if (loading) return <Skeleton active avatar paragraph={{ rows: 6 }} />;
   if (!provider)
@@ -1052,19 +1125,55 @@ export default function ProviderDetail() {
             </Card>
 
             {/* Previous Works */}
-            {works.length > 0 && (
-              <Card
-                bordered={false}
-                title={
+            <Card
+              bordered={false}
+              title={
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}
+                >
                   <span style={{ fontWeight: 700 }}>
                     الأعمال السابقة ({works.length})
                   </span>
-                }
-                style={{
-                  borderRadius: 16,
-                  boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
-                }}
-              >
+                  <Button
+                    size="small"
+                    icon={<PlusOutlined />}
+                    onClick={(e) => {
+                      e.stopPropagation(); // ← أضف السطر ده
+                      workForm.resetFields();
+                      setWorkModalOpen(true);
+                    }}
+                    style={{ borderColor: "#e07b1a", color: "#e07b1a" }}
+                  >
+                    إضافة عمل
+                  </Button>
+                </div>
+              }
+              style={{
+                borderRadius: 16,
+                boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
+              }}
+            >
+              {works.length === 0 ? (
+                <Empty
+                  description="لا توجد أعمال سابقة"
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                >
+                  <Button
+                    icon={<PlusOutlined />}
+                    onClick={() => {
+                      workForm.resetFields();
+                      setWorkModalOpen(true);
+                    }}
+                    style={{ borderColor: "#e07b1a", color: "#e07b1a" }}
+                  >
+                    إضافة عمل
+                  </Button>
+                </Empty>
+              ) : (
                 <List
                   grid={{ gutter: 16, xs: 1, sm: 2, md: 3 }}
                   dataSource={works}
@@ -1075,15 +1184,28 @@ export default function ProviderDetail() {
                         style={{ borderRadius: 8, overflow: "hidden" }}
                         cover={
                           w.media_type === "image" && w.media_url ? (
-                            <img
+                            <Image
                               src={w.media_url}
                               alt={w.title}
+                              style={{ height: 120, objectFit: "cover" }}
+                              preview={{ mask: <EyeOutlined /> }}
+                            />
+                          ) : w.media_type === "video" ? (
+                            <div
                               style={{
                                 height: 120,
-                                objectFit: "cover",
-                                borderRadius: "8px 8px 0 0",
+                                background: "#1a1a2e",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                color: "#fff",
+                                fontSize: 28,
+                                cursor: "pointer",
                               }}
-                            />
+                              onClick={() => window.open(w.media_url, "_blank")}
+                            >
+                              🎬
+                            </div>
                           ) : (
                             <div
                               style={{
@@ -1092,22 +1214,34 @@ export default function ProviderDetail() {
                                 display: "flex",
                                 alignItems: "center",
                                 justifyContent: "center",
-                                borderRadius: "8px 8px 0 0",
                                 color: "#bbb",
-                                fontSize: 13,
                               }}
                             >
-                              {w.media_type === "video"
-                                ? "🎬 فيديو"
-                                : "لا توجد صورة"}
+                              لا توجد صورة
                             </div>
                           )
                         }
+                        actions={[
+                          <Popconfirm
+                            key="delete"
+                            title="حذف هذا العمل؟"
+                            onConfirm={() => handleDeleteWork(w.id)}
+                            okText="نعم"
+                            cancelText="لا"
+                            okButtonProps={{ danger: true }}
+                          >
+                            <Button
+                              size="small"
+                              danger
+                              icon={<DeleteOutlined />}
+                            />
+                          </Popconfirm>,
+                        ]}
                       >
                         <Card.Meta
                           title={
                             <div style={{ wordBreak: "break-word" }}>
-                              {w.title}
+                              {w.title || "بدون عنوان"}
                             </div>
                           }
                           description={
@@ -1120,11 +1254,58 @@ export default function ProviderDetail() {
                     </List.Item>
                   )}
                 />
-              </Card>
-            )}
+              )}
+            </Card>
           </Space>
         </Col>
       </Row>
+      {/* ══ Modal: Add Previous Work ══ */}
+      <Modal
+        title={
+          <Space style={{ fontFamily: "'Cairo', sans-serif", fontWeight: 700 }}>
+            <PlusOutlined style={{ color: "#e07b1a" }} />
+            إضافة عمل جديد
+          </Space>
+        }
+        open={workModalOpen}
+        onOk={handleAddWork}
+        onCancel={() => {
+          setWorkModalOpen(false);
+          workForm.resetFields();
+        }}
+        okText="إضافة"
+        cancelText="إلغاء"
+        confirmLoading={workUploading}
+        okButtonProps={{
+          style: { background: "#e07b1a", borderColor: "#e07b1a" },
+        }}
+        style={{ direction: "rtl", fontFamily: "'Cairo', sans-serif" }}
+        width={480}
+        destroyOnClose
+      >
+        <Form form={workForm} layout="vertical" style={{ marginTop: 16 }}>
+          <Form.Item name="title" label="العنوان">
+            <Input placeholder="عنوان العمل (اختياري)" />
+          </Form.Item>
+          <Form.Item name="description" label="الوصف">
+            <Input.TextArea rows={2} placeholder="وصف مختصر (اختياري)" />
+          </Form.Item>
+          <Form.Item
+            name="media"
+            label="الصورة أو الفيديو"
+            rules={[{ required: true, message: "اختر ملفاً" }]}
+          >
+            <Upload
+              maxCount={1}
+              beforeUpload={() => false}
+              accept="image/*,video/*"
+              listType="picture"
+            >
+              <Button icon={<UploadOutlined />}>اختر صورة أو فيديو</Button>
+            </Upload>
+          </Form.Item>
+        </Form>
+      </Modal>
 
       {/* ══ Modal: Edit Provider ══ */}
       <Modal
