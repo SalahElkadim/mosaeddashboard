@@ -20,6 +20,7 @@ import {
   Typography,
   Divider,
   InputNumber,
+  Upload,
 } from "antd";
 import {
   PlusOutlined,
@@ -31,6 +32,8 @@ import {
   CheckCircleOutlined,
   CloseCircleOutlined,
   SafetyCertificateOutlined,
+  LoadingOutlined,
+  InboxOutlined,
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
@@ -38,6 +41,9 @@ import api from "../../api/axios";
 const { Search } = Input;
 const { Text } = Typography;
 const { Option } = Select;
+
+const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
 const DURATION_LABELS = { day: "يوم", month: "شهر", year: "سنة" };
 
@@ -51,6 +57,10 @@ export default function Services() {
   const [editingService, setEditingService] = useState(null);
   const [saving, setSaving] = useState(false);
   const [form] = Form.useForm();
+
+  // ── Image Upload ──
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [previewImage, setPreviewImage] = useState(null);
 
   // ── Specializations ──
   const [specializations, setSpecializations] = useState([]);
@@ -85,8 +95,44 @@ export default function Services() {
     fetchSpecializations();
   }, [isActiveFilter]);
 
+  const handleImageUpload = async ({ file }) => {
+    // Validate size (5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      message.error("حجم الصورة يجب أن يكون أقل من 5MB");
+      return false;
+    }
+
+    setUploadingImage(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("upload_preset", UPLOAD_PRESET);
+      fd.append("folder", "services");
+
+      const res = await fetch(
+        `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
+        { method: "POST", body: fd }
+      );
+
+      const data = await res.json();
+      if (data.secure_url) {
+        form.setFieldValue("image", data.secure_url);
+        setPreviewImage(data.secure_url);
+        message.success("تم رفع الصورة بنجاح");
+      } else {
+        message.error("فشل رفع الصورة، حاول مرة أخرى");
+      }
+    } catch {
+      message.error("حدث خطأ أثناء رفع الصورة");
+    } finally {
+      setUploadingImage(false);
+    }
+    return false; // prevent antd auto-upload
+  };
+
   const openModal = (service = null) => {
     setEditingService(service);
+    setPreviewImage(service?.image ?? null);
     if (service) {
       form.setFieldsValue({
         title: service.title,
@@ -96,7 +142,6 @@ export default function Services() {
         is_active: service.is_active,
         specialization:
           service.specialization?.id ?? service.specialization ?? undefined,
-        // ── بيانات الضمان ──
         warranty_duration_value: service.warranty?.duration_value ?? undefined,
         warranty_duration_type: service.warranty?.duration_type ?? undefined,
         warranty_notes: service.warranty?.notes ?? "",
@@ -113,7 +158,6 @@ export default function Services() {
       const values = await form.validateFields();
       setSaving(true);
 
-      // افصل بيانات الضمان عن بيانات الخدمة
       const {
         warranty_duration_value,
         warranty_duration_type,
@@ -123,7 +167,6 @@ export default function Services() {
 
       const payload = { ...serviceValues };
 
-      // لو في بيانات ضمان، ضيفها
       if (warranty_duration_value && warranty_duration_type) {
         payload.warranty = {
           duration_value: warranty_duration_value,
@@ -451,12 +494,16 @@ export default function Services() {
         }
         open={modalOpen}
         onOk={handleSave}
-        onCancel={() => setModalOpen(false)}
+        onCancel={() => {
+          setModalOpen(false);
+          setPreviewImage(null);
+        }}
         okText={editingService ? "حفظ التعديلات" : "إنشاء الخدمة"}
         cancelText="إلغاء"
         confirmLoading={saving}
         okButtonProps={{
           style: { background: "#e07b1a", borderColor: "#e07b1a" },
+          disabled: uploadingImage,
         }}
         style={{ direction: "rtl", fontFamily: "'Cairo', sans-serif" }}
         width={560}
@@ -502,8 +549,84 @@ export default function Services() {
             <Input.TextArea rows={3} placeholder="وصف تفصيلي للخدمة..." />
           </Form.Item>
 
-          <Form.Item name="image" label="رابط الصورة">
-            <Input placeholder="https://example.com/image.jpg" />
+          {/* ── Image Upload ── */}
+          {/* hidden field to store the URL */}
+          <Form.Item name="image" style={{ display: "none" }}>
+            <Input />
+          </Form.Item>
+
+          <Form.Item label="صورة الخدمة">
+            <Upload
+              accept="image/*"
+              showUploadList={false}
+              customRequest={handleImageUpload}
+              disabled={uploadingImage}
+            >
+              <div
+                style={{
+                  border: `1px dashed ${
+                    uploadingImage ? "#e07b1a" : "#d9d9d9"
+                  }`,
+                  borderRadius: 10,
+                  padding: previewImage ? 8 : 20,
+                  textAlign: "center",
+                  cursor: uploadingImage ? "not-allowed" : "pointer",
+                  background: "#fafafa",
+                  transition: "border-color 0.25s",
+                  overflow: "hidden",
+                }}
+                onMouseEnter={(e) => {
+                  if (!uploadingImage)
+                    e.currentTarget.style.borderColor = "#e07b1a";
+                }}
+                onMouseLeave={(e) => {
+                  if (!uploadingImage)
+                    e.currentTarget.style.borderColor = "#d9d9d9";
+                }}
+              >
+                {uploadingImage ? (
+                  <Space direction="vertical" size={6} style={{ padding: 12 }}>
+                    <LoadingOutlined
+                      style={{ fontSize: 26, color: "#e07b1a" }}
+                    />
+                    <Text type="secondary" style={{ fontSize: 13 }}>
+                      جاري رفع الصورة...
+                    </Text>
+                  </Space>
+                ) : previewImage ? (
+                  <Space
+                    direction="vertical"
+                    size={8}
+                    style={{ width: "100%" }}
+                  >
+                    <img
+                      src={previewImage}
+                      alt="preview"
+                      style={{
+                        width: "100%",
+                        maxHeight: 160,
+                        objectFit: "cover",
+                        borderRadius: 8,
+                        display: "block",
+                      }}
+                    />
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                      اضغط لتغيير الصورة
+                    </Text>
+                  </Space>
+                ) : (
+                  <Space direction="vertical" size={4}>
+                    <InboxOutlined style={{ fontSize: 32, color: "#bbb" }} />
+                    <Text style={{ fontSize: 14, color: "#555" }}>
+                      اضغط أو اسحب الصورة هنا
+                    </Text>
+                    <Text type="secondary" style={{ fontSize: 11 }}>
+                      PNG، JPG، WEBP — الحجم الأقصى 5MB
+                    </Text>
+                  </Space>
+                )}
+              </div>
+            </Upload>
           </Form.Item>
 
           <Row gutter={12}>
