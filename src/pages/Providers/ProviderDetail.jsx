@@ -52,9 +52,9 @@ const { Title, Text } = Typography;
 const { Option } = Select;
 
 const CLOUDINARY_CLOUD_NAME =
-  import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || "your_cloud_name";
+  import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || "dftpzis0y";
 const CLOUDINARY_UPLOAD_PRESET =
-  import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || "your_upload_preset";
+  import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || "ml_default";
 
 const STATUS_MAP = {
   active: { color: "success", label: "نشط" },
