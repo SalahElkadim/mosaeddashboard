@@ -358,6 +358,21 @@ export default function BookingDetail() {
                   </Text>
                 </Descriptions.Item>
               )}
+              {/* التكلفة الإجمالية = خدمات + زيارة */}
+              {booking.service_visit_cost != null && (
+                <Descriptions.Item label="الإجمالي الكلي (شامل الزيارة)">
+                  <Text
+                    style={{ color: "#52c41a", fontWeight: 700, fontSize: 16 }}
+                  >
+                    {(
+                      parseFloat(
+                        booking.final_cost ?? booking.total_cost ?? 0
+                      ) + parseFloat(booking.service_visit_cost ?? 0)
+                    ).toFixed(2)}{" "}
+                    ر.س
+                  </Text>
+                </Descriptions.Item>
+              )}
             </Descriptions>
           </Card>
 

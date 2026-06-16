@@ -28,6 +28,7 @@ import {
   SyncOutlined,
   EditOutlined,
   TagOutlined,
+  CarOutlined,
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
@@ -193,9 +194,24 @@ export default function Bookings() {
       render: (_, r) => {
         const hasDiscount =
           r.coupon_code || parseFloat(r.discount_amount ?? 0) > 0;
+        const visitCost = parseFloat(r.service_visit_cost ?? 0);
+        const hasVisitCost = visitCost > 0;
 
         return (
-          <div style={{ minWidth: 130 }}>
+          <div style={{ minWidth: 150 }}>
+            {/* تكلفة الزيارة */}
+            {hasVisitCost && (
+              <div style={{ marginBottom: 4 }}>
+                <Tag
+                  icon={<CarOutlined />}
+                  color="blue"
+                  style={{ borderRadius: 6, fontSize: 11 }}
+                >
+                  زيارة: {visitCost.toFixed(2)} ر.س
+                </Tag>
+              </div>
+            )}
+
             {hasDiscount ? (
               <>
                 {/* كوبون الخصم */}
@@ -225,12 +241,14 @@ export default function Bookings() {
                   </Text>
                 </div>
 
-                {/* السعر النهائي */}
+                {/* السعر النهائي (خدمات + زيارة) */}
                 <div>
                   <Text
                     style={{ color: "#52c41a", fontWeight: 700, fontSize: 14 }}
                   >
-                    {parseFloat(r.final_cost ?? r.total_cost ?? 0).toFixed(2)}{" "}
+                    {(
+                      parseFloat(r.final_cost ?? r.total_cost ?? 0) + visitCost
+                    ).toFixed(2)}{" "}
                     ر.س
                   </Text>
                 </div>
@@ -238,7 +256,7 @@ export default function Bookings() {
             ) : (
               /* لا يوجد خصم */
               <Text style={{ fontWeight: 600, fontSize: 14 }}>
-                {parseFloat(r.total_cost ?? 0).toFixed(2)} ر.س
+                {(parseFloat(r.total_cost ?? 0) + visitCost).toFixed(2)} ر.س
               </Text>
             )}
           </div>
