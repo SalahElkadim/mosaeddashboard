@@ -13,7 +13,6 @@ import {
   Typography,
   Row,
   Col,
-  Timeline,
   Divider,
   Avatar,
 } from "antd";
@@ -30,6 +29,7 @@ import {
   CloseCircleOutlined,
   SyncOutlined,
   PhoneOutlined,
+  UserAddOutlined,
 } from "@ant-design/icons";
 import { useNavigate, useParams } from "react-router-dom";
 import api from "../../api/axios";
@@ -48,7 +48,6 @@ const STATUS_MAP = {
   cancelled: { label: "ملغي", color: "red", icon: <CloseCircleOutlined /> },
 };
 
-// Timeline steps for booking flow
 const STATUS_STEPS = ["pending", "confirmed", "completed"];
 
 export default function BookingDetail() {
@@ -56,9 +55,18 @@ export default function BookingDetail() {
   const navigate = useNavigate();
   const [booking, setBooking] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // Status modal
   const [statusModalOpen, setStatusModalOpen] = useState(false);
   const [newStatus, setNewStatus] = useState("");
   const [updating, setUpdating] = useState(false);
+
+  // Assign provider modal
+  const [assignModalOpen, setAssignModalOpen] = useState(false);
+  const [availableProviders, setAvailableProviders] = useState([]);
+  const [loadingProviders, setLoadingProviders] = useState(false);
+  const [selectedProvider, setSelectedProvider] = useState(null);
+  const [assigning, setAssigning] = useState(false);
 
   const fetchBooking = async () => {
     setLoading(true);
@@ -76,6 +84,7 @@ export default function BookingDetail() {
     fetchBooking();
   }, [id]);
 
+  // ── Status ──────────────────────────────────────────────
   const openStatusModal = () => {
     setNewStatus(booking.status);
     setStatusModalOpen(true);
@@ -109,6 +118,47 @@ export default function BookingDetail() {
     }
   };
 
+  // ── Assign Provider ─────────────────────────────────────
+  const openAssignModal = async () => {
+    setAssignModalOpen(true);
+    setSelectedProvider(null);
+    setLoadingProviders(true);
+    try {
+      const res = await api.get(
+        `/existedservices/admin/services/${booking.service_id}/available-providers/`
+      );
+      setAvailableProviders(res.data);
+    } catch {
+      message.error("فشل تحميل الفنيين المتاحين");
+    } finally {
+      setLoadingProviders(false);
+    }
+  };
+
+  const handleAssignProvider = async () => {
+    if (!selectedProvider) {
+      message.warning("اختر فني أولاً");
+      return;
+    }
+    try {
+      setAssigning(true);
+      await api.patch(
+        `/existedservices/admin/bookings/${id}/assign-provider/`,
+        {
+          provider_id: selectedProvider,
+        }
+      );
+      message.success("تم تعيين الفني بنجاح");
+      setAssignModalOpen(false);
+      fetchBooking();
+    } catch {
+      message.error("فشل تعيين الفني");
+    } finally {
+      setAssigning(false);
+    }
+  };
+
+  // ── Render ───────────────────────────────────────────────
   if (loading) {
     return (
       <div style={{ textAlign: "center", padding: "80px 0" }}>
@@ -139,12 +189,13 @@ export default function BookingDetail() {
     icon: null,
   };
 
-  // Find current step index for timeline
   const currentStepIdx =
     booking.status === "cancelled" ? -1 : STATUS_STEPS.indexOf(booking.status);
 
   const address = booking.address ?? null;
   const items = booking.items ?? [];
+  const canModify =
+    booking.status !== "cancelled" && booking.status !== "completed";
 
   return (
     <div style={{ fontFamily: "'Cairo', sans-serif" }}>
@@ -187,7 +238,7 @@ export default function BookingDetail() {
         </Space>
 
         <Space>
-          {booking.status !== "cancelled" && booking.status !== "completed" && (
+          {canModify && (
             <>
               <Button
                 icon={<EditOutlined />}
@@ -350,7 +401,7 @@ export default function BookingDetail() {
                 </Descriptions.Item>
               )}
               {booking.total_cost && (
-                <Descriptions.Item label="السعر الإجمالي">
+                <Descriptions.Item label="إجمالي الخدمات">
                   <Text
                     style={{ color: "#52c41a", fontWeight: 700, fontSize: 16 }}
                   >
@@ -358,11 +409,32 @@ export default function BookingDetail() {
                   </Text>
                 </Descriptions.Item>
               )}
-              {/* التكلفة الإجمالية = خدمات + زيارة */}
               {booking.service_visit_cost != null && (
-                <Descriptions.Item label="الإجمالي الكلي (شامل الزيارة)">
+                <Descriptions.Item label="تكلفة الزيارة">
+                  <Text style={{ color: "#1677ff", fontWeight: 600 }}>
+                    {booking.service_visit_cost} ر.س
+                  </Text>
+                </Descriptions.Item>
+              )}
+              {booking.coupon_code && (
+                <Descriptions.Item label="كود الخصم">
+                  <Tag color="purple">{booking.coupon_code}</Tag>
+                </Descriptions.Item>
+              )}
+              {booking.discount_amount > 0 && (
+                <Descriptions.Item label="قيمة الخصم">
+                  <Text style={{ color: "#ff4d4f", fontWeight: 600 }}>
+                    - {booking.discount_amount} ر.س
+                  </Text>
+                </Descriptions.Item>
+              )}
+              {booking.service_visit_cost != null && (
+                <Descriptions.Item
+                  label="الإجمالي الكلي (شامل الزيارة)"
+                  span={2}
+                >
                   <Text
-                    style={{ color: "#52c41a", fontWeight: 700, fontSize: 16 }}
+                    style={{ color: "#0f1f1a", fontWeight: 700, fontSize: 17 }}
                   >
                     {(
                       parseFloat(
@@ -376,7 +448,7 @@ export default function BookingDetail() {
             </Descriptions>
           </Card>
 
-          {/* Items / Attributes */}
+          {/* Items */}
           {items.length > 0 && (
             <Card
               title={
@@ -528,23 +600,58 @@ export default function BookingDetail() {
               <Avatar
                 size={64}
                 icon={<UserOutlined />}
-                style={{ background: "#0f1f1a", marginBottom: 12 }}
+                style={{
+                  background: booking.provider_name ? "#0f1f1a" : "#d9d9d9",
+                  marginBottom: 12,
+                }}
               />
               <div style={{ fontWeight: 700, fontSize: 16, color: "#0f1f1a" }}>
-                {booking.provider_name ?? "مزود الخدمة"}
+                {booking.provider_name ?? "لم يتم تعيين فني بعد"}
               </div>
-              <Tag color="green" style={{ marginTop: 4 }}>
-                مزود خدمة
+              <Tag
+                color={booking.provider_name ? "green" : "default"}
+                style={{ marginTop: 4 }}
+              >
+                {booking.provider_name ? "مزود خدمة" : "غير محدد"}
               </Tag>
             </div>
             <Divider style={{ margin: "12px 0" }} />
-            {booking.provider_phone && (
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {booking.provider_phone ? (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  marginBottom: 12,
+                }}
+              >
                 <PhoneOutlined style={{ color: "#0f1f1a" }} />
                 <Text style={{ direction: "ltr" }}>
                   {booking.provider_phone}
                 </Text>
               </div>
+            ) : (
+              <Text
+                type="secondary"
+                style={{
+                  display: "block",
+                  textAlign: "center",
+                  marginBottom: 12,
+                }}
+              >
+                لا يوجد فني مُعيَّن
+              </Text>
+            )}
+            {canModify && (
+              <Button
+                type="dashed"
+                icon={<UserAddOutlined />}
+                onClick={openAssignModal}
+                block
+                style={{ borderColor: "#0f1f1a", color: "#0f1f1a" }}
+              >
+                {booking.provider_name ? "تغيير الفني" : "تعيين فني"}
+              </Button>
             )}
           </Card>
 
@@ -618,6 +725,81 @@ export default function BookingDetail() {
               </Option>
             ))}
           </Select>
+        </div>
+      </Modal>
+
+      {/* Assign Provider Modal */}
+      <Modal
+        title={
+          <span style={{ fontFamily: "'Cairo', sans-serif", fontWeight: 700 }}>
+            {booking.provider_name
+              ? "تغيير الفني المُعيَّن"
+              : "تعيين فني للحجز"}
+          </span>
+        }
+        open={assignModalOpen}
+        onOk={handleAssignProvider}
+        onCancel={() => setAssignModalOpen(false)}
+        okText="تعيين"
+        cancelText="إلغاء"
+        confirmLoading={assigning}
+        okButtonProps={{
+          style: { background: "#0f1f1a", borderColor: "#0f1f1a" },
+        }}
+        style={{ direction: "rtl", fontFamily: "'Cairo', sans-serif" }}
+      >
+        <div style={{ marginTop: 16 }}>
+          {booking.provider_name && (
+            <div
+              style={{
+                marginBottom: 16,
+                padding: "10px 14px",
+                background: "#f5f5f5",
+                borderRadius: 8,
+              }}
+            >
+              <Text type="secondary">الفني الحالي: </Text>
+              <Text strong>{booking.provider_name}</Text>
+            </div>
+          )}
+          <div style={{ marginBottom: 8, color: "#333", fontWeight: 600 }}>
+            اختر الفني:
+          </div>
+          {loadingProviders ? (
+            <div style={{ textAlign: "center", padding: 24 }}>
+              <Spin />
+            </div>
+          ) : availableProviders.length === 0 ? (
+            <Text type="secondary">لا يوجد فنيين متاحين لهذه الخدمة</Text>
+          ) : (
+            <Select
+              placeholder="اختر فني من القائمة"
+              value={selectedProvider}
+              onChange={setSelectedProvider}
+              style={{ width: "100%" }}
+              showSearch
+              optionFilterProp="children"
+            >
+              {availableProviders.map((p) => (
+                <Option key={p.id} value={p.id}>
+                  <Space>
+                    <UserOutlined />
+                    <span>{p.name}</span>
+                    {p.phone_number && (
+                      <Text type="secondary" style={{ fontSize: 12 }}>
+                        {p.phone_number}
+                      </Text>
+                    )}
+                    {p.specialization && (
+                      <Tag color="blue" style={{ fontSize: 11 }}>
+                        {p.specialization}
+                      </Tag>
+                    )}
+                  </Space>
+                </Option>
+              ))}
+            </Select>
+          )}
         </div>
       </Modal>
     </div>
