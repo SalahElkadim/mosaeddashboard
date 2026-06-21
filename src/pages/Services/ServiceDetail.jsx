@@ -189,6 +189,7 @@ export default function ServiceDetail() {
     fetchWarranty,
   ]);
 
+  // ── Attribute Modal ──────────────────────────────────────
   const openAttrModal = (attr = null) => {
     setEditingAttr(attr);
     if (attr) {
@@ -196,6 +197,8 @@ export default function ServiceDetail() {
         name: attr.name,
         details: attr.details,
         unit_cost: attr.unit_cost,
+        unit_name: attr.unit_name,
+        quantity_name: attr.quantity_name,
       });
     } else {
       attrForm.resetFields();
@@ -242,6 +245,7 @@ export default function ServiceDetail() {
     }
   };
 
+  // ── Provider ─────────────────────────────────────────────
   const openAssignModal = () => {
     fetchAvailableProviders();
     setAssignModal(true);
@@ -270,7 +274,9 @@ export default function ServiceDetail() {
     try {
       await api.patch(
         `/existedservices/admin/services/${id}/providers/${spId}/`,
-        { is_available: !current }
+        {
+          is_available: !current,
+        }
       );
       message.success(current ? "تم إيقاف الإتاحة" : "تم تفعيل الإتاحة");
       fetchProviders();
@@ -291,6 +297,7 @@ export default function ServiceDetail() {
     }
   };
 
+  // ── Reviews ──────────────────────────────────────────────
   const handleDeleteReview = async (reviewId) => {
     try {
       await api.delete(`/existedservices/reviews/${reviewId}/`);
@@ -311,6 +318,7 @@ export default function ServiceDetail() {
     }
   };
 
+  // ── Warranty ─────────────────────────────────────────────
   const openWarrantyModal = () => {
     if (warranty) {
       warrantyForm.setFieldsValue({
@@ -377,6 +385,7 @@ export default function ServiceDetail() {
     }
   };
 
+  // ── Table Columns ────────────────────────────────────────
   const attrColumns = [
     {
       title: "اسم الخاصية",
@@ -395,7 +404,21 @@ export default function ServiceDetail() {
       ),
     },
     {
-      title: "التكلفة لكل وحدة",
+      title: "اسم الكمية",
+      dataIndex: "quantity_name",
+      key: "quantity_name",
+      render: (v) =>
+        v ? <Tag color="purple">{v}</Tag> : <Text type="secondary">—</Text>,
+    },
+    {
+      title: "الوحدة",
+      dataIndex: "unit_name",
+      key: "unit_name",
+      render: (v) =>
+        v ? <Tag color="cyan">{v}</Tag> : <Text type="secondary">—</Text>,
+    },
+    {
+      title: "التكلفة / وحدة",
       dataIndex: "unit_cost",
       key: "unit_cost",
       render: (v) =>
@@ -575,6 +598,7 @@ export default function ServiceDetail() {
     },
   ];
 
+  // ── Render ───────────────────────────────────────────────
   return (
     <div style={{ fontFamily: "'Cairo', sans-serif", direction: "rtl" }}>
       <Button
@@ -665,7 +689,6 @@ export default function ServiceDetail() {
                   {service.details}
                 </Text>
               )}
-              {/* ── visit_cost + date row ── */}
               <div
                 style={{
                   marginTop: 10,
@@ -821,7 +844,7 @@ export default function ServiceDetail() {
                     dataSource={attributes}
                     loading={loadingAttr}
                     rowKey="id"
-                    scroll={{ x: 600 }}
+                    scroll={{ x: 700 }}
                     pagination={{ pageSize: 8, showSizeChanger: false }}
                     locale={{
                       emptyText: (
@@ -1121,11 +1144,34 @@ export default function ServiceDetail() {
             label="اسم الخاصية"
             rules={[{ required: true, message: "الرجاء إدخال اسم الخاصية" }]}
           >
-            <Input placeholder="مثال: عدد الوحدات" />
+            <Input placeholder="مثال: عزل فوم" />
           </Form.Item>
+
           <Form.Item name="details" label="التفاصيل">
             <Input.TextArea rows={2} placeholder="وصف اختياري للخاصية..." />
           </Form.Item>
+
+          <Row gutter={12}>
+            <Col span={12}>
+              <Form.Item
+                name="quantity_name"
+                label="اسم الكمية"
+                tooltip="التسمية التي تظهر للعميل عند إدخال الكمية، مثال: المساحة"
+              >
+                <Input placeholder="مثال: المساحة" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="unit_name"
+                label="اسم الوحدة"
+                tooltip="وحدة القياس المستخدمة، مثال: متر مربع"
+              >
+                <Input placeholder="مثال: متر مربع" />
+              </Form.Item>
+            </Col>
+          </Row>
+
           <Form.Item
             name="unit_cost"
             label="التكلفة لكل وحدة (ر.س)"
@@ -1138,6 +1184,39 @@ export default function ServiceDetail() {
               formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}
               parser={(v) => v?.replace(/,*/g, "")}
             />
+          </Form.Item>
+
+          {/* Preview */}
+          <Form.Item noStyle shouldUpdate>
+            {({ getFieldValue }) => {
+              const qName = getFieldValue("quantity_name");
+              const uName = getFieldValue("unit_name");
+              const cost = getFieldValue("unit_cost");
+              if (!qName && !uName && !cost) return null;
+              return (
+                <div
+                  style={{
+                    padding: "10px 14px",
+                    background: "#fff7e6",
+                    borderRadius: 8,
+                    border: "1px dashed #e07b1a",
+                    fontSize: 13,
+                  }}
+                >
+                  <Text
+                    type="secondary"
+                    style={{ fontSize: 12, display: "block", marginBottom: 4 }}
+                  >
+                    معاينة — كيف ستظهر للعميل:
+                  </Text>
+                  <Text>
+                    {qName || "الكمية"}
+                    {uName ? ` (${uName})` : ""}
+                    {cost ? ` × ${cost} ر.س` : ""}
+                  </Text>
+                </div>
+              );
+            }}
           </Form.Item>
         </Form>
       </Modal>
