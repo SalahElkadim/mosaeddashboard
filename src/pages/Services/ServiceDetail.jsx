@@ -142,12 +142,9 @@ export default function BookingDetail() {
     }
     try {
       setAssigning(true);
-      await api.patch(
-        `/existedservices/admin/bookings/${id}/assign-provider/`,
-        {
-          provider_id: selectedProvider,
-        }
-      );
+      await api.patch(`/existedservices/admin/bookings/${id}/assign-provider/`, {
+        provider_id: selectedProvider,
+      });
       message.success("تم تعيين الفني بنجاح");
       setAssignModalOpen(false);
       fetchBooking();
@@ -275,9 +272,7 @@ export default function BookingDetail() {
         bodyStyle={{ padding: "20px 32px" }}
       >
         {booking.status === "cancelled" ? (
-          <div
-            style={{ textAlign: "center", color: "#ff4d4f", fontWeight: 600 }}
-          >
+          <div style={{ textAlign: "center", color: "#ff4d4f", fontWeight: 600 }}>
             <CloseCircleOutlined style={{ fontSize: 20, marginLeft: 8 }} />
             تم إلغاء هذا الحجز
           </div>
@@ -295,10 +290,7 @@ export default function BookingDetail() {
               const done = idx <= currentStepIdx;
               const active = idx === currentStepIdx;
               return (
-                <div
-                  key={step}
-                  style={{ display: "flex", alignItems: "center" }}
-                >
+                <div key={step} style={{ display: "flex", alignItems: "center" }}>
                   <div style={{ textAlign: "center" }}>
                     <div
                       style={{
@@ -334,8 +326,7 @@ export default function BookingDetail() {
                       style={{
                         width: 80,
                         height: 2,
-                        background:
-                          idx < currentStepIdx ? "#0f1f1a" : "#f0f0f0",
+                        background: idx < currentStepIdx ? "#0f1f1a" : "#f0f0f0",
                         margin: "0 8px",
                         marginBottom: 22,
                         transition: "all 0.3s",
@@ -375,14 +366,11 @@ export default function BookingDetail() {
               </Descriptions.Item>
               <Descriptions.Item label="تاريخ الموعد">
                 {booking.scheduled_date
-                  ? new Date(booking.scheduled_date).toLocaleDateString(
-                      "ar-SA",
-                      {
-                        year: "numeric",
-                        month: "long",
-                        day: "numeric",
-                      }
-                    )
+                  ? new Date(booking.scheduled_date).toLocaleDateString("ar-SA", {
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    })
                   : "—"}
               </Descriptions.Item>
               <Descriptions.Item label="تاريخ الإنشاء">
@@ -402,9 +390,7 @@ export default function BookingDetail() {
               )}
               {booking.total_cost && (
                 <Descriptions.Item label="إجمالي الخدمات">
-                  <Text
-                    style={{ color: "#52c41a", fontWeight: 700, fontSize: 16 }}
-                  >
+                  <Text style={{ color: "#52c41a", fontWeight: 700, fontSize: 16 }}>
                     {booking.total_cost} ر.س
                   </Text>
                 </Descriptions.Item>
@@ -429,17 +415,11 @@ export default function BookingDetail() {
                 </Descriptions.Item>
               )}
               {booking.service_visit_cost != null && (
-                <Descriptions.Item
-                  label="الإجمالي الكلي (شامل الزيارة)"
-                  span={2}
-                >
-                  <Text
-                    style={{ color: "#0f1f1a", fontWeight: 700, fontSize: 17 }}
-                  >
+                <Descriptions.Item label="الإجمالي الكلي (شامل الزيارة)" span={2}>
+                  <Text style={{ color: "#0f1f1a", fontWeight: 700, fontSize: 17 }}>
                     {(
-                      parseFloat(
-                        booking.final_cost ?? booking.total_cost ?? 0
-                      ) + parseFloat(booking.service_visit_cost ?? 0)
+                      parseFloat(booking.final_cost ?? booking.total_cost ?? 0) +
+                      parseFloat(booking.service_visit_cost ?? 0)
                     ).toFixed(2)}{" "}
                     ر.س
                   </Text>
@@ -513,19 +493,13 @@ export default function BookingDetail() {
             >
               <Descriptions column={{ xs: 1, sm: 2 }} size="middle">
                 {address.city && (
-                  <Descriptions.Item label="المدينة">
-                    {address.city}
-                  </Descriptions.Item>
+                  <Descriptions.Item label="المدينة">{address.city}</Descriptions.Item>
                 )}
                 {address.district && (
-                  <Descriptions.Item label="الحي">
-                    {address.district}
-                  </Descriptions.Item>
+                  <Descriptions.Item label="الحي">{address.district}</Descriptions.Item>
                 )}
                 {address.street && (
-                  <Descriptions.Item label="الشارع">
-                    {address.street}
-                  </Descriptions.Item>
+                  <Descriptions.Item label="الشارع">{address.street}</Descriptions.Item>
                 )}
                 {address.building_no && (
                   <Descriptions.Item label="رقم المبنى">
@@ -533,9 +507,7 @@ export default function BookingDetail() {
                   </Descriptions.Item>
                 )}
                 {address.floor_no && (
-                  <Descriptions.Item label="الطابق">
-                    {address.floor_no}
-                  </Descriptions.Item>
+                  <Descriptions.Item label="الطابق">{address.floor_no}</Descriptions.Item>
                 )}
                 {address.apartment_no && (
                   <Descriptions.Item label="رقم الشقة">
@@ -580,9 +552,7 @@ export default function BookingDetail() {
             {booking.customer_phone && (
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <PhoneOutlined style={{ color: "#e07b1a" }} />
-                <Text style={{ direction: "ltr" }}>
-                  {booking.customer_phone}
-                </Text>
+                <Text style={{ direction: "ltr" }}>{booking.customer_phone}</Text>
               </div>
             )}
           </Card>
@@ -608,37 +578,18 @@ export default function BookingDetail() {
               <div style={{ fontWeight: 700, fontSize: 16, color: "#0f1f1a" }}>
                 {booking.provider_name ?? "لم يتم تعيين فني بعد"}
               </div>
-              <Tag
-                color={booking.provider_name ? "green" : "default"}
-                style={{ marginTop: 4 }}
-              >
+              <Tag color={booking.provider_name ? "green" : "default"} style={{ marginTop: 4 }}>
                 {booking.provider_name ? "مزود خدمة" : "غير محدد"}
               </Tag>
             </div>
             <Divider style={{ margin: "12px 0" }} />
             {booking.provider_phone ? (
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  marginBottom: 12,
-                }}
-              >
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
                 <PhoneOutlined style={{ color: "#0f1f1a" }} />
-                <Text style={{ direction: "ltr" }}>
-                  {booking.provider_phone}
-                </Text>
+                <Text style={{ direction: "ltr" }}>{booking.provider_phone}</Text>
               </div>
             ) : (
-              <Text
-                type="secondary"
-                style={{
-                  display: "block",
-                  textAlign: "center",
-                  marginBottom: 12,
-                }}
-              >
+              <Text type="secondary" style={{ display: "block", textAlign: "center", marginBottom: 12 }}>
                 لا يوجد فني مُعيَّن
               </Text>
             )}
@@ -689,19 +640,13 @@ export default function BookingDetail() {
         okText="حفظ"
         cancelText="إلغاء"
         confirmLoading={updating}
-        okButtonProps={{
-          style: { background: "#e07b1a", borderColor: "#e07b1a" },
-        }}
+        okButtonProps={{ style: { background: "#e07b1a", borderColor: "#e07b1a" } }}
         style={{ direction: "rtl", fontFamily: "'Cairo', sans-serif" }}
       >
         <div style={{ marginTop: 16 }}>
           <div style={{ marginBottom: 12, color: "#555" }}>
             الحالة الحالية:{" "}
-            <Tag
-              icon={statusInfo.icon}
-              color={statusInfo.color}
-              style={{ fontWeight: 600 }}
-            >
+            <Tag icon={statusInfo.icon} color={statusInfo.color} style={{ fontWeight: 600 }}>
               {statusInfo.label}
             </Tag>
           </div>
@@ -732,9 +677,7 @@ export default function BookingDetail() {
       <Modal
         title={
           <span style={{ fontFamily: "'Cairo', sans-serif", fontWeight: 700 }}>
-            {booking.provider_name
-              ? "تغيير الفني المُعيَّن"
-              : "تعيين فني للحجز"}
+            {booking.provider_name ? "تغيير الفني المُعيَّن" : "تعيين فني للحجز"}
           </span>
         }
         open={assignModalOpen}
@@ -743,21 +686,12 @@ export default function BookingDetail() {
         okText="تعيين"
         cancelText="إلغاء"
         confirmLoading={assigning}
-        okButtonProps={{
-          style: { background: "#0f1f1a", borderColor: "#0f1f1a" },
-        }}
+        okButtonProps={{ style: { background: "#0f1f1a", borderColor: "#0f1f1a" } }}
         style={{ direction: "rtl", fontFamily: "'Cairo', sans-serif" }}
       >
         <div style={{ marginTop: 16 }}>
           {booking.provider_name && (
-            <div
-              style={{
-                marginBottom: 16,
-                padding: "10px 14px",
-                background: "#f5f5f5",
-                borderRadius: 8,
-              }}
-            >
+            <div style={{ marginBottom: 16, padding: "10px 14px", background: "#f5f5f5", borderRadius: 8 }}>
               <Text type="secondary">الفني الحالي: </Text>
               <Text strong>{booking.provider_name}</Text>
             </div>
