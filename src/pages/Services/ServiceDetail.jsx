@@ -24,6 +24,8 @@ import {
   Skeleton,
   Empty,
   Badge,
+  Image,
+  Spin,
 } from "antd";
 import {
   ArrowRightOutlined,
@@ -39,6 +41,9 @@ import {
   ClearOutlined,
   SafetyCertificateOutlined,
   CarOutlined,
+  SwapOutlined,
+  EyeOutlined,
+  CalendarOutlined,
 } from "@ant-design/icons";
 import { useNavigate, useParams } from "react-router-dom";
 import api from "../../api/axios";
@@ -47,6 +52,14 @@ const { Text, Title } = Typography;
 const { Option } = Select;
 
 const fmt = (v) => (v ? new Date(v).toLocaleDateString("ar-SA") : "—");
+const fmtFull = (v) =>
+  v
+    ? new Date(v).toLocaleDateString("ar-SA", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      })
+    : "—";
 
 const DURATION_LABELS = { day: "يوم", month: "شهر", year: "سنة" };
 
@@ -69,7 +82,6 @@ export default function ServiceDetail() {
   const [assignModal, setAssignModal] = useState(false);
   const [assignForm] = Form.useForm();
   const [savingAssign, setSavingAssign] = useState(false);
-
   const [availableProviders, setAvailableProviders] = useState([]);
   const [loadingAvailable, setLoadingAvailable] = useState(false);
 
@@ -83,6 +95,12 @@ export default function ServiceDetail() {
   const [savingWarranty, setSavingWarranty] = useState(false);
   const [warrantyForm] = Form.useForm();
 
+  // ── Previous Works State (NEW) ──
+  const [previousWorks, setPreviousWorks] = useState([]);
+  const [loadingPrevWorks, setLoadingPrevWorks] = useState(false);
+  const [previewWork, setPreviewWork] = useState(null); // { before_image, after_image, created_at }
+
+  // ── Fetchers ──
   const fetchService = useCallback(async () => {
     setLoadingService(true);
     try {
@@ -151,27 +169,27 @@ export default function ServiceDetail() {
       );
       setWarranty(res.data);
     } catch (err) {
-      if (err?.response?.status === 404) {
-        setWarranty(null);
-      } else {
-        message.error("فشل تحميل بيانات الضمان");
-      }
+      if (err?.response?.status === 404) setWarranty(null);
+      else message.error("فشل تحميل بيانات الضمان");
     } finally {
       setLoadingWarranty(false);
     }
   }, [id]);
 
-  const fetchAvailableProviders = useCallback(async () => {
-    setLoadingAvailable(true);
+  // ── Fetch Previous Works (NEW) ──
+  const fetchPreviousWorks = useCallback(async () => {
+    setLoadingPrevWorks(true);
     try {
       const res = await api.get(
-        `/existedservices/admin/services/${id}/available-providers/`
+        `/existedservices/services/${id}/previous-works/`
       );
-      setAvailableProviders(Array.isArray(res.data) ? res.data : []);
+      setPreviousWorks(
+        Array.isArray(res.data) ? res.data : res.data.results ?? []
+      );
     } catch {
-      message.error("فشل تحميل مزودي الخدمة المتاحين");
+      message.error("فشل تحميل الأعمال السابقة");
     } finally {
-      setLoadingAvailable(false);
+      setLoadingPrevWorks(false);
     }
   }, [id]);
 
@@ -181,15 +199,17 @@ export default function ServiceDetail() {
     fetchProviders();
     fetchReviews();
     fetchWarranty();
+    fetchPreviousWorks();
   }, [
     fetchService,
     fetchAttributes,
     fetchProviders,
     fetchReviews,
     fetchWarranty,
+    fetchPreviousWorks,
   ]);
 
-  // ── Attribute Modal ──────────────────────────────────────
+  // ── Attribute Handlers ──
   const openAttrModal = (attr = null) => {
     setEditingAttr(attr);
     if (attr) {
@@ -245,10 +265,24 @@ export default function ServiceDetail() {
     }
   };
 
-  // ── Provider ─────────────────────────────────────────────
+  // ── Provider Handlers ──
   const openAssignModal = () => {
     fetchAvailableProviders();
     setAssignModal(true);
+  };
+
+  const fetchAvailableProviders = async () => {
+    setLoadingAvailable(true);
+    try {
+      const res = await api.get(
+        `/existedservices/admin/services/${id}/available-providers/`
+      );
+      setAvailableProviders(Array.isArray(res.data) ? res.data : []);
+    } catch {
+      message.error("فشل تحميل مزودي الخدمة المتاحين");
+    } finally {
+      setLoadingAvailable(false);
+    }
   };
 
   const handleAssignProvider = async () => {
@@ -274,9 +308,7 @@ export default function ServiceDetail() {
     try {
       await api.patch(
         `/existedservices/admin/services/${id}/providers/${spId}/`,
-        {
-          is_available: !current,
-        }
+        { is_available: !current }
       );
       message.success(current ? "تم إيقاف الإتاحة" : "تم تفعيل الإتاحة");
       fetchProviders();
@@ -297,7 +329,7 @@ export default function ServiceDetail() {
     }
   };
 
-  // ── Reviews ──────────────────────────────────────────────
+  // ── Review Handlers ──
   const handleDeleteReview = async (reviewId) => {
     try {
       await api.delete(`/existedservices/reviews/${reviewId}/`);
@@ -318,7 +350,7 @@ export default function ServiceDetail() {
     }
   };
 
-  // ── Warranty ─────────────────────────────────────────────
+  // ── Warranty Handlers ──
   const openWarrantyModal = () => {
     if (warranty) {
       warrantyForm.setFieldsValue({
@@ -385,7 +417,7 @@ export default function ServiceDetail() {
     }
   };
 
-  // ── Table Columns ────────────────────────────────────────
+  // ── Table Columns ──
   const attrColumns = [
     {
       title: "اسم الخاصية",
@@ -598,7 +630,7 @@ export default function ServiceDetail() {
     },
   ];
 
-  // ── Render ───────────────────────────────────────────────
+  // ── Render ──
   return (
     <div style={{ fontFamily: "'Cairo', sans-serif", direction: "rtl" }}>
       <Button
@@ -753,10 +785,10 @@ export default function ServiceDetail() {
           },
           {
             title: "متوسط التقييم",
-            value: rating?.average_rating
-              ? Number(rating.average_rating).toFixed(1)
+            value: rating?.average_stars
+              ? Number(rating.average_stars).toFixed(1)
               : "—",
-            suffix: rating?.average_rating ? " / 5" : "",
+            suffix: rating?.average_stars ? " / 5" : "",
             icon: <StarOutlined />,
             color: "#faad14",
             bg: "#fffbe6",
@@ -768,8 +800,21 @@ export default function ServiceDetail() {
             color: "#52c41a",
             bg: "#f6ffed",
           },
+          {
+            title: "الأعمال السابقة",
+            value: previousWorks.length,
+            icon: <SwapOutlined />,
+            color: "#e07b1a",
+            bg: "#fff7e6",
+          },
         ].map((s, i) => (
-          <Col xs={24} sm={12} lg={6} key={i}>
+          <Col
+            xs={24}
+            sm={12}
+            lg={i < 4 ? 6 : 24}
+            key={i}
+            style={i === 4 ? { display: "none" } : {}}
+          >
             <Card
               bordered={false}
               style={{ borderRadius: 12, background: s.bg }}
@@ -804,6 +849,7 @@ export default function ServiceDetail() {
           style={{ fontFamily: "'Cairo', sans-serif" }}
           tabBarStyle={{ padding: "0 24px", marginBottom: 0 }}
           items={[
+            // ── Attributes Tab ──
             {
               key: "attributes",
               label: (
@@ -985,6 +1031,8 @@ export default function ServiceDetail() {
                 </div>
               ),
             },
+
+            // ── Providers Tab ──
             {
               key: "providers",
               label: (
@@ -1039,6 +1087,8 @@ export default function ServiceDetail() {
                 </div>
               ),
             },
+
+            // ── Reviews Tab ──
             {
               key: "reviews",
               label: (
@@ -1070,11 +1120,11 @@ export default function ServiceDetail() {
                           <Rate
                             disabled
                             allowHalf
-                            value={Number(rating.average_rating)}
+                            value={Number(rating.average_stars)}
                             style={{ fontSize: 16 }}
                           />
                           <Text strong style={{ fontSize: 16 }}>
-                            {Number(rating.average_rating).toFixed(1)}
+                            {Number(rating.average_stars).toFixed(1)}
                           </Text>
                           <Text type="secondary">
                             ({rating.total_reviews} تقييم)
@@ -1116,9 +1166,188 @@ export default function ServiceDetail() {
                 </div>
               ),
             },
+
+            // ══════════════════════════════════════════
+            // ── Previous Works Tab (NEW) ──
+            // ══════════════════════════════════════════
+            {
+              key: "previous_works",
+              label: (
+                <Space>
+                  <SwapOutlined />
+                  الأعمال السابقة
+                  <Badge
+                    count={previousWorks.length}
+                    style={{ background: "#e07b1a" }}
+                    overflowCount={99}
+                  />
+                </Space>
+              ),
+              children: (
+                <div style={{ padding: "16px 24px 24px" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: 20,
+                    }}
+                  >
+                    <Text style={{ color: "#666", fontSize: 13 }}>
+                      صور قبل وبعد أضافها مزودو الخدمة عند إتمام الحجوزات
+                    </Text>
+                    <Tag
+                      color="orange"
+                      style={{ borderRadius: 6, fontSize: 12 }}
+                    >
+                      {previousWorks.length} عمل سابق
+                    </Tag>
+                  </div>
+
+                  {loadingPrevWorks ? (
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "center",
+                        padding: "48px 0",
+                      }}
+                    >
+                      <Spin size="large" />
+                    </div>
+                  ) : previousWorks.length === 0 ? (
+                    <Empty
+                      image={
+                        <SwapOutlined
+                          style={{ fontSize: 64, color: "#e07b1a33" }}
+                        />
+                      }
+                      description={
+                        <Text type="secondary" style={{ fontSize: 14 }}>
+                          لا توجد أعمال سابقة بعد. ستظهر هنا بعد أن يُتمّ مزودو
+                          الخدمة حجوزاتهم ويضيفوا صور قبل/بعد.
+                        </Text>
+                      }
+                      style={{ padding: "48px 0" }}
+                    />
+                  ) : (
+                    <>
+                      {/* Grid of Before/After pairs */}
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns:
+                            "repeat(auto-fill, minmax(320px, 1fr))",
+                          gap: 20,
+                        }}
+                      >
+                        {previousWorks.map((work, idx) => (
+                          <PreviousWorkCard
+                            key={work.id}
+                            work={work}
+                            index={idx + 1}
+                            onPreview={() => setPreviewWork(work)}
+                          />
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              ),
+            },
           ]}
         />
       </Card>
+
+      {/* ── Modal: Preview Previous Work (NEW) ── */}
+      <Modal
+        open={!!previewWork}
+        onCancel={() => setPreviewWork(null)}
+        footer={null}
+        width={780}
+        style={{ direction: "rtl", fontFamily: "'Cairo', sans-serif" }}
+        title={
+          <Space style={{ fontFamily: "'Cairo', sans-serif", fontWeight: 700 }}>
+            <SwapOutlined style={{ color: "#e07b1a" }} />
+            عرض العمل السابق
+            {previewWork?.created_at && (
+              <Tag
+                color="orange"
+                style={{ borderRadius: 6, fontSize: 11, fontWeight: 400 }}
+              >
+                <CalendarOutlined style={{ marginLeft: 4 }} />
+                {fmtFull(previewWork.created_at)}
+              </Tag>
+            )}
+          </Space>
+        }
+      >
+        {previewWork && (
+          <Row gutter={[16, 16]} style={{ marginTop: 8 }}>
+            <Col xs={24} sm={12}>
+              <div
+                style={{
+                  borderRadius: 10,
+                  overflow: "hidden",
+                  border: "2px solid #ff4d4f44",
+                }}
+              >
+                <div
+                  style={{
+                    background: "#ff4d4f",
+                    color: "#fff",
+                    padding: "6px 14px",
+                    fontWeight: 700,
+                    fontSize: 13,
+                  }}
+                >
+                  ⬤ قبل
+                </div>
+                <Image
+                  src={previewWork.before_image}
+                  alt="قبل"
+                  style={{
+                    width: "100%",
+                    maxHeight: 300,
+                    objectFit: "cover",
+                    display: "block",
+                  }}
+                />
+              </div>
+            </Col>
+            <Col xs={24} sm={12}>
+              <div
+                style={{
+                  borderRadius: 10,
+                  overflow: "hidden",
+                  border: "2px solid #52c41a44",
+                }}
+              >
+                <div
+                  style={{
+                    background: "#52c41a",
+                    color: "#fff",
+                    padding: "6px 14px",
+                    fontWeight: 700,
+                    fontSize: 13,
+                  }}
+                >
+                  ⬤ بعد
+                </div>
+                <Image
+                  src={previewWork.after_image}
+                  alt="بعد"
+                  style={{
+                    width: "100%",
+                    maxHeight: 300,
+                    objectFit: "cover",
+                    display: "block",
+                  }}
+                />
+              </div>
+            </Col>
+          </Row>
+        )}
+      </Modal>
 
       {/* Modal: Attribute */}
       <Modal
@@ -1146,11 +1375,9 @@ export default function ServiceDetail() {
           >
             <Input placeholder="مثال: عزل فوم" />
           </Form.Item>
-
           <Form.Item name="details" label="التفاصيل">
             <Input.TextArea rows={2} placeholder="وصف اختياري للخاصية..." />
           </Form.Item>
-
           <Row gutter={12}>
             <Col span={12}>
               <Form.Item
@@ -1171,7 +1398,6 @@ export default function ServiceDetail() {
               </Form.Item>
             </Col>
           </Row>
-
           <Form.Item
             name="unit_cost"
             label="التكلفة لكل وحدة (ر.س)"
@@ -1185,8 +1411,6 @@ export default function ServiceDetail() {
               parser={(v) => v?.replace(/,*/g, "")}
             />
           </Form.Item>
-
-          {/* Preview */}
           <Form.Item noStyle shouldUpdate>
             {({ getFieldValue }) => {
               const qName = getFieldValue("quantity_name");
@@ -1366,6 +1590,147 @@ export default function ServiceDetail() {
           </Form.Item>
         </Form>
       </Modal>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════
+// ── PreviousWorkCard Component (NEW) ──
+// ══════════════════════════════════════════
+function PreviousWorkCard({ work, index, onPreview }) {
+  return (
+    <div
+      style={{
+        borderRadius: 14,
+        overflow: "hidden",
+        border: "1px solid #e8e8e8",
+        background: "#fff",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+        transition: "box-shadow 0.2s, transform 0.2s",
+        cursor: "pointer",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.boxShadow = "0 6px 20px rgba(224,123,26,0.18)";
+        e.currentTarget.style.transform = "translateY(-2px)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.06)";
+        e.currentTarget.style.transform = "translateY(0)";
+      }}
+      onClick={onPreview}
+    >
+      {/* Header */}
+      <div
+        style={{
+          background: "linear-gradient(135deg, #0f1f1a, #1a3a30)",
+          padding: "10px 14px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        <Space>
+          <SwapOutlined style={{ color: "#e07b1a", fontSize: 14 }} />
+          <Text style={{ color: "#fff", fontWeight: 700, fontSize: 13 }}>
+            عمل سابق #{index}
+          </Text>
+        </Space>
+        <Space size={6}>
+          <Tag
+            style={{
+              margin: 0,
+              fontSize: 11,
+              borderRadius: 4,
+              background: "rgba(255,255,255,0.1)",
+              color: "#fff",
+              border: "1px solid rgba(255,255,255,0.2)",
+            }}
+          >
+            <CalendarOutlined style={{ marginLeft: 3 }} />
+            {new Date(work.created_at).toLocaleDateString("ar-SA")}
+          </Tag>
+          <Button
+            size="small"
+            icon={<EyeOutlined />}
+            style={{
+              borderRadius: 6,
+              background: "#e07b1a",
+              borderColor: "#e07b1a",
+              color: "#fff",
+              fontSize: 11,
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onPreview();
+            }}
+          >
+            عرض
+          </Button>
+        </Space>
+      </div>
+
+      {/* Images side by side */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
+        {/* Before */}
+        <div style={{ position: "relative" }}>
+          <img
+            src={work.before_image}
+            alt="قبل"
+            style={{
+              width: "100%",
+              height: 160,
+              objectFit: "cover",
+              display: "block",
+            }}
+          />
+          <div
+            style={{
+              position: "absolute",
+              bottom: 0,
+              left: 0,
+              right: 0,
+              background: "linear-gradient(transparent, rgba(220,38,38,0.75))",
+              color: "#fff",
+              fontSize: 11,
+              fontWeight: 700,
+              padding: "16px 8px 6px",
+              textAlign: "center",
+            }}
+          >
+            ⬤ قبل
+          </div>
+        </div>
+
+        {/* After */}
+        <div style={{ position: "relative", borderRight: "2px solid #fff" }}>
+          <img
+            src={work.after_image}
+            alt="بعد"
+            style={{
+              width: "100%",
+              height: 160,
+              objectFit: "cover",
+              display: "block",
+            }}
+          />
+          <div
+            style={{
+              position: "absolute",
+              bottom: 0,
+              left: 0,
+              right: 0,
+              background: "linear-gradient(transparent, rgba(22,163,74,0.75))",
+              color: "#fff",
+              fontSize: 11,
+              fontWeight: 700,
+              padding: "16px 8px 6px",
+              textAlign: "center",
+            }}
+          >
+            ⬤ بعد
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

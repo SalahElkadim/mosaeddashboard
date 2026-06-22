@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Card,
   Button,
@@ -9,7 +9,6 @@ import {
   Spin,
   Image,
   Empty,
-  Divider,
   Row,
   Col,
   Popconfirm,
@@ -19,7 +18,7 @@ import {
   Input,
   Select,
   Badge,
-  Tooltip,
+  Upload,
 } from "antd";
 import {
   ArrowRightOutlined,
@@ -38,6 +37,8 @@ import {
   SaveOutlined,
   DollarOutlined,
   TagOutlined,
+  SwapOutlined,
+  InboxOutlined,
 } from "@ant-design/icons";
 import { useNavigate, useParams } from "react-router-dom";
 import api from "../../api/axios";
@@ -45,6 +46,7 @@ import api from "../../api/axios";
 const { Text, Title, Paragraph } = Typography;
 const { TextArea } = Input;
 const { Option } = Select;
+const { Dragger } = Upload;
 
 const fmt = (v) =>
   v
@@ -82,6 +84,16 @@ export default function CompletionDetail() {
   const [mediaForm] = Form.useForm();
   const [savingMedia, setSavingMedia] = useState(false);
 
+  // ── Previous Work State ──
+  const [previousWork, setPreviousWork] = useState(null);
+  const [loadingPrevWork, setLoadingPrevWork] = useState(false);
+  const [prevWorkModal, setPrevWorkModal] = useState(false);
+  const [savingPrevWork, setSavingPrevWork] = useState(false);
+  const [beforeFile, setBeforeFile] = useState(null);
+  const [afterFile, setAfterFile] = useState(null);
+  const [beforePreview, setBeforePreview] = useState(null);
+  const [afterPreview, setAfterPreview] = useState(null);
+
   const fetchBooking = useCallback(async () => {
     setLoadingBooking(true);
     try {
@@ -112,10 +124,26 @@ export default function CompletionDetail() {
     }
   }, [bookingId]);
 
+  const fetchPreviousWork = useCallback(async () => {
+    setLoadingPrevWork(true);
+    try {
+      const res = await api.get(
+        `/existedservices/bookings/${bookingId}/previous-work/`
+      );
+      setPreviousWork(res.data);
+    } catch (err) {
+      if (err?.response?.status === 404) setPreviousWork(null);
+      else message.error("فشل تحميل العمل السابق");
+    } finally {
+      setLoadingPrevWork(false);
+    }
+  }, [bookingId]);
+
   useEffect(() => {
     fetchBooking();
     fetchForm();
-  }, [fetchBooking, fetchForm]);
+    fetchPreviousWork();
+  }, [fetchBooking, fetchForm, fetchPreviousWork]);
 
   const handleSaveNotes = async () => {
     setSavingNotes(true);
@@ -184,9 +212,83 @@ export default function CompletionDetail() {
     }
   };
 
-  const isFinished = form_?.is_finished === true;
+  // ── Previous Work Handlers ──
+  const makePreview = (file) => {
+    if (!file) return null;
+    return URL.createObjectURL(file);
+  };
 
-  // ── حساب بيانات التكلفة ──
+  const openPrevWorkModal = () => {
+    setBeforeFile(null);
+    setAfterFile(null);
+    setBeforePreview(previousWork?.before_image ?? null);
+    setAfterPreview(previousWork?.after_image ?? null);
+    setPrevWorkModal(true);
+  };
+
+  const closePrevWorkModal = () => {
+    setPrevWorkModal(false);
+    setBeforeFile(null);
+    setAfterFile(null);
+    setBeforePreview(null);
+    setAfterPreview(null);
+  };
+
+  const handleSavePrevWork = async () => {
+    // لازم يكون عنده صورتين على الأقل لو بيضيف جديد
+    const isEdit = !!previousWork;
+    if (!isEdit && (!beforeFile || !afterFile)) {
+      message.warning("من فضلك ارفع صورة قبل وصورة بعد");
+      return;
+    }
+
+    const formData = new FormData();
+    if (beforeFile) formData.append("before_image", beforeFile);
+    if (afterFile) formData.append("after_image", afterFile);
+
+    setSavingPrevWork(true);
+    try {
+      if (isEdit) {
+        await api.patch(
+          `/existedservices/bookings/${bookingId}/previous-work/manage/`,
+          formData,
+          { headers: { "Content-Type": "multipart/form-data" } }
+        );
+        message.success("تم تحديث العمل السابق");
+      } else {
+        await api.post(
+          `/existedservices/bookings/${bookingId}/previous-work/`,
+          formData,
+          { headers: { "Content-Type": "multipart/form-data" } }
+        );
+        message.success("تم إضافة العمل السابق");
+      }
+      closePrevWorkModal();
+      fetchPreviousWork();
+    } catch (err) {
+      const errMsg =
+        err?.response?.data?.non_field_errors?.[0] ??
+        err?.response?.data?.detail ??
+        "فشل حفظ العمل السابق";
+      message.error(errMsg);
+    } finally {
+      setSavingPrevWork(false);
+    }
+  };
+
+  const handleDeletePrevWork = async () => {
+    try {
+      await api.delete(
+        `/existedservices/bookings/${bookingId}/previous-work/manage/`
+      );
+      message.success("تم حذف العمل السابق");
+      setPreviousWork(null);
+    } catch {
+      message.error("فشل حذف العمل السابق");
+    }
+  };
+
+  const isFinished = form_?.is_finished === true;
   const hasDiscount = booking && parseFloat(booking.discount_amount ?? 0) > 0;
   const displayedCost = booking
     ? parseFloat(
@@ -272,10 +374,8 @@ export default function CompletionDetail() {
                 </div>
               </Space>
             </Col>
-
             <Col xs={24} md={10}>
               <Row gutter={[8, 8]}>
-                {/* العميل */}
                 <Col xs={12}>
                   <InfoBox
                     icon={<UserOutlined />}
@@ -284,8 +384,6 @@ export default function CompletionDetail() {
                     sub={booking.customer_phone}
                   />
                 </Col>
-
-                {/* الفني */}
                 <Col xs={12}>
                   <InfoBox
                     icon={<UserOutlined />}
@@ -294,8 +392,6 @@ export default function CompletionDetail() {
                     sub={booking.provider_phone}
                   />
                 </Col>
-
-                {/* تاريخ الخدمة */}
                 <Col xs={12}>
                   <InfoBox
                     icon={<CalendarOutlined />}
@@ -303,8 +399,6 @@ export default function CompletionDetail() {
                     value={fmt(booking.scheduled_date)}
                   />
                 </Col>
-
-                {/* ── التكلفة المُصلحة ── */}
                 <Col xs={12}>
                   <div
                     style={{
@@ -323,10 +417,8 @@ export default function CompletionDetail() {
                       <DollarOutlined style={{ marginLeft: 4 }} />
                       الإجمالي
                     </Text>
-
                     {hasDiscount ? (
                       <>
-                        {/* كوبون */}
                         {booking.coupon_code && (
                           <div style={{ marginBottom: 2 }}>
                             <Tag
@@ -342,7 +434,6 @@ export default function CompletionDetail() {
                             </Tag>
                           </div>
                         )}
-                        {/* السعر الأصلي مشطوب */}
                         <Text
                           style={{
                             color: "rgba(255,255,255,0.35)",
@@ -354,7 +445,6 @@ export default function CompletionDetail() {
                           {Number(booking.total_cost).toLocaleString("ar-SA")}{" "}
                           ر.س
                         </Text>
-                        {/* الخصم */}
                         <Text
                           style={{
                             color: "#ff7875",
@@ -368,7 +458,6 @@ export default function CompletionDetail() {
                           )}{" "}
                           ر.س
                         </Text>
-                        {/* السعر النهائي */}
                         <Text
                           style={{
                             color: "#95f4a1",
@@ -395,7 +484,6 @@ export default function CompletionDetail() {
                     )}
                   </div>
                 </Col>
-                {/* ─────────────────────── */}
               </Row>
             </Col>
           </Row>
@@ -429,252 +517,422 @@ export default function CompletionDetail() {
           />
         </Card>
       ) : (
-        <Row gutter={[16, 16]}>
-          {/* Notes + Status */}
-          <Col xs={24} lg={10}>
-            <Card
-              bordered={false}
-              style={{
-                borderRadius: 16,
-                marginBottom: 16,
-                border: isFinished ? "2px solid #52c41a" : "2px solid #faad14",
-                background: isFinished ? "#f6ffed" : "#fffbe6",
-              }}
-              bodyStyle={{ padding: "20px 24px" }}
-            >
-              <Space direction="vertical" style={{ width: "100%" }} size={12}>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                  }}
-                >
-                  <Space>
-                    {isFinished ? (
-                      <CheckCircleOutlined
-                        style={{ fontSize: 24, color: "#52c41a" }}
-                      />
-                    ) : (
-                      <ClockCircleOutlined
-                        style={{ fontSize: 24, color: "#faad14" }}
-                      />
-                    )}
-                    <div>
-                      <Text
-                        strong
-                        style={{
-                          fontSize: 15,
-                          color: isFinished ? "#16a34a" : "#d97706",
-                          display: "block",
-                        }}
-                      >
-                        {isFinished ? "الخدمة مكتملة" : "بانتظار إتمام الخدمة"}
-                      </Text>
-                      <Text type="secondary" style={{ fontSize: 11 }}>
-                        {isFinished
-                          ? `أُنجز بتاريخ: ${fmtTime(form_.finished_at)}`
-                          : "لم يقم الفني بإنهاء الخدمة بعد"}
-                      </Text>
-                    </div>
-                  </Space>
-                  <Tag
-                    color={isFinished ? "success" : "warning"}
-                    style={{ borderRadius: 8, fontWeight: 700 }}
-                  >
-                    {isFinished ? "منتهية" : "قيد التنفيذ"}
-                  </Tag>
-                </div>
-
-                {!isFinished && (
-                  <Popconfirm
-                    title="إنهاء الخدمة؟"
-                    description="سيتم تحديد الخدمة كمنتهية ولا يمكن التراجع."
-                    onConfirm={handleFinish}
-                    okText="نعم، إنهاء"
-                    cancelText="إلغاء"
-                    okButtonProps={{
-                      style: { background: "#16a34a", borderColor: "#16a34a" },
+        <>
+          <Row gutter={[16, 16]}>
+            {/* Notes + Status */}
+            <Col xs={24} lg={10}>
+              <Card
+                bordered={false}
+                style={{
+                  borderRadius: 16,
+                  marginBottom: 16,
+                  border: isFinished
+                    ? "2px solid #52c41a"
+                    : "2px solid #faad14",
+                  background: isFinished ? "#f6ffed" : "#fffbe6",
+                }}
+                bodyStyle={{ padding: "20px 24px" }}
+              >
+                <Space direction="vertical" style={{ width: "100%" }} size={12}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
                     }}
                   >
-                    <Button
-                      type="primary"
-                      icon={<CheckCircleOutlined />}
-                      loading={finishing}
-                      block
-                      style={{
-                        background: "#16a34a",
-                        borderColor: "#16a34a",
-                        borderRadius: 8,
-                        fontWeight: 700,
-                        height: 40,
+                    <Space>
+                      {isFinished ? (
+                        <CheckCircleOutlined
+                          style={{ fontSize: 24, color: "#52c41a" }}
+                        />
+                      ) : (
+                        <ClockCircleOutlined
+                          style={{ fontSize: 24, color: "#faad14" }}
+                        />
+                      )}
+                      <div>
+                        <Text
+                          strong
+                          style={{
+                            fontSize: 15,
+                            color: isFinished ? "#16a34a" : "#d97706",
+                            display: "block",
+                          }}
+                        >
+                          {isFinished
+                            ? "الخدمة مكتملة"
+                            : "بانتظار إتمام الخدمة"}
+                        </Text>
+                        <Text type="secondary" style={{ fontSize: 11 }}>
+                          {isFinished
+                            ? `أُنجز بتاريخ: ${fmtTime(form_.finished_at)}`
+                            : "لم يقم الفني بإنهاء الخدمة بعد"}
+                        </Text>
+                      </div>
+                    </Space>
+                    <Tag
+                      color={isFinished ? "success" : "warning"}
+                      style={{ borderRadius: 8, fontWeight: 700 }}
+                    >
+                      {isFinished ? "منتهية" : "قيد التنفيذ"}
+                    </Tag>
+                  </div>
+                  {!isFinished && (
+                    <Popconfirm
+                      title="إنهاء الخدمة؟"
+                      description="سيتم تحديد الخدمة كمنتهية ولا يمكن التراجع."
+                      onConfirm={handleFinish}
+                      okText="نعم، إنهاء"
+                      cancelText="إلغاء"
+                      okButtonProps={{
+                        style: {
+                          background: "#16a34a",
+                          borderColor: "#16a34a",
+                        },
                       }}
                     >
-                      إنهاء الخدمة
-                    </Button>
-                  </Popconfirm>
-                )}
-              </Space>
-            </Card>
-
-            {/* Notes */}
-            <Card
-              bordered={false}
-              style={{ borderRadius: 16 }}
-              bodyStyle={{ padding: "20px 24px" }}
-              title={
-                <Space>
-                  <FileProtectOutlined style={{ color: "#e07b1a" }} />
-                  <Text strong>ملاحظات الفني</Text>
+                      <Button
+                        type="primary"
+                        icon={<CheckCircleOutlined />}
+                        loading={finishing}
+                        block
+                        style={{
+                          background: "#16a34a",
+                          borderColor: "#16a34a",
+                          borderRadius: 8,
+                          fontWeight: 700,
+                          height: 40,
+                        }}
+                      >
+                        إنهاء الخدمة
+                      </Button>
+                    </Popconfirm>
+                  )}
                 </Space>
-              }
-              extra={
-                !isFinished && (
-                  <Button
-                    type="text"
-                    icon={editingNotes ? <SaveOutlined /> : <EditOutlined />}
-                    style={{ color: "#e07b1a" }}
-                    loading={savingNotes}
-                    onClick={
-                      editingNotes
-                        ? handleSaveNotes
-                        : () => setEditingNotes(true)
-                    }
-                  >
-                    {editingNotes ? "حفظ" : "تعديل"}
-                  </Button>
-                )
-              }
-            >
-              {editingNotes ? (
-                <Space direction="vertical" style={{ width: "100%" }}>
-                  <TextArea
-                    rows={5}
-                    value={notesValue}
-                    onChange={(e) => setNotesValue(e.target.value)}
-                    placeholder="أدخل ملاحظات حول إتمام الخدمة..."
-                    style={{ borderRadius: 8 }}
-                  />
+              </Card>
+
+              {/* Notes */}
+              <Card
+                bordered={false}
+                style={{ borderRadius: 16 }}
+                bodyStyle={{ padding: "20px 24px" }}
+                title={
                   <Space>
+                    <FileProtectOutlined style={{ color: "#e07b1a" }} />
+                    <Text strong>ملاحظات الفني</Text>
+                  </Space>
+                }
+                extra={
+                  !isFinished && (
+                    <Button
+                      type="text"
+                      icon={editingNotes ? <SaveOutlined /> : <EditOutlined />}
+                      style={{ color: "#e07b1a" }}
+                      loading={savingNotes}
+                      onClick={
+                        editingNotes
+                          ? handleSaveNotes
+                          : () => setEditingNotes(true)
+                      }
+                    >
+                      {editingNotes ? "حفظ" : "تعديل"}
+                    </Button>
+                  )
+                }
+              >
+                {editingNotes ? (
+                  <Space direction="vertical" style={{ width: "100%" }}>
+                    <TextArea
+                      rows={5}
+                      value={notesValue}
+                      onChange={(e) => setNotesValue(e.target.value)}
+                      placeholder="أدخل ملاحظات حول إتمام الخدمة..."
+                      style={{ borderRadius: 8 }}
+                    />
+                    <Space>
+                      <Button
+                        type="primary"
+                        loading={savingNotes}
+                        onClick={handleSaveNotes}
+                        style={{
+                          background: "#0f1f1a",
+                          borderColor: "#0f1f1a",
+                          borderRadius: 6,
+                        }}
+                      >
+                        حفظ الملاحظات
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          setEditingNotes(false);
+                          setNotesValue(form_.notes ?? "");
+                        }}
+                      >
+                        إلغاء
+                      </Button>
+                    </Space>
+                  </Space>
+                ) : form_?.notes ? (
+                  <Paragraph
+                    style={{
+                      background: "#fafafa",
+                      borderRadius: 8,
+                      padding: "12px 16px",
+                      margin: 0,
+                      fontSize: 13,
+                      lineHeight: 1.8,
+                      border: "1px solid #f0f0f0",
+                    }}
+                  >
+                    {form_.notes}
+                  </Paragraph>
+                ) : (
+                  <Text type="secondary" style={{ fontSize: 13 }}>
+                    لا توجد ملاحظات بعد.{" "}
+                    {!isFinished && (
+                      <Button
+                        type="link"
+                        size="small"
+                        onClick={() => setEditingNotes(true)}
+                        style={{ padding: 0 }}
+                      >
+                        إضافة ملاحظات
+                      </Button>
+                    )}
+                  </Text>
+                )}
+              </Card>
+            </Col>
+
+            {/* Media */}
+            <Col xs={24} lg={14}>
+              <Card
+                bordered={false}
+                style={{ borderRadius: 16 }}
+                bodyStyle={{ padding: "20px 24px" }}
+                title={
+                  <Space>
+                    <PictureOutlined style={{ color: "#1677ff" }} />
+                    <Text strong>وسائط إتمام الخدمة</Text>
+                    <Badge
+                      count={form_?.media?.length ?? 0}
+                      style={{ background: "#1677ff" }}
+                    />
+                  </Space>
+                }
+                extra={
+                  !isFinished && (
                     <Button
                       type="primary"
-                      loading={savingNotes}
-                      onClick={handleSaveNotes}
+                      icon={<PlusOutlined />}
+                      size="small"
+                      onClick={() => setMediaModal(true)}
                       style={{
-                        background: "#0f1f1a",
-                        borderColor: "#0f1f1a",
+                        background: "#1677ff",
+                        borderColor: "#1677ff",
                         borderRadius: 6,
                       }}
                     >
-                      حفظ الملاحظات
+                      إضافة وسائط
                     </Button>
-                    <Button
-                      onClick={() => {
-                        setEditingNotes(false);
-                        setNotesValue(form_.notes ?? "");
-                      }}
-                    >
-                      إلغاء
-                    </Button>
-                  </Space>
-                </Space>
-              ) : form_?.notes ? (
-                <Paragraph
-                  style={{
-                    background: "#fafafa",
-                    borderRadius: 8,
-                    padding: "12px 16px",
-                    margin: 0,
-                    fontSize: 13,
-                    lineHeight: 1.8,
-                    border: "1px solid #f0f0f0",
-                  }}
-                >
-                  {form_.notes}
-                </Paragraph>
-              ) : (
-                <Text type="secondary" style={{ fontSize: 13 }}>
-                  لا توجد ملاحظات بعد.{" "}
-                  {!isFinished && (
-                    <Button
-                      type="link"
-                      size="small"
-                      onClick={() => setEditingNotes(true)}
-                      style={{ padding: 0 }}
-                    >
-                      إضافة ملاحظات
-                    </Button>
-                  )}
-                </Text>
-              )}
-            </Card>
-          </Col>
-
-          {/* Media */}
-          <Col xs={24} lg={14}>
-            <Card
-              bordered={false}
-              style={{ borderRadius: 16 }}
-              bodyStyle={{ padding: "20px 24px" }}
-              title={
-                <Space>
-                  <PictureOutlined style={{ color: "#1677ff" }} />
-                  <Text strong>وسائط إتمام الخدمة</Text>
-                  <Badge
-                    count={form_?.media?.length ?? 0}
-                    style={{ background: "#1677ff" }}
+                  )
+                }
+              >
+                {!form_?.media?.length ? (
+                  <Empty
+                    description="لا توجد صور أو فيديوهات بعد"
+                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                    style={{ padding: "32px 0" }}
                   />
-                </Space>
-              }
-              extra={
-                !isFinished && (
-                  <Button
-                    type="primary"
-                    icon={<PlusOutlined />}
-                    size="small"
-                    onClick={() => setMediaModal(true)}
+                ) : (
+                  <div
                     style={{
-                      background: "#1677ff",
-                      borderColor: "#1677ff",
-                      borderRadius: 6,
+                      display: "grid",
+                      gridTemplateColumns:
+                        "repeat(auto-fill, minmax(140px, 1fr))",
+                      gap: 12,
                     }}
                   >
-                    إضافة وسائط
-                  </Button>
-                )
-              }
-            >
-              {!form_?.media?.length ? (
-                <Empty
-                  description="لا توجد صور أو فيديوهات بعد"
-                  image={Empty.PRESENTED_IMAGE_SIMPLE}
-                  style={{ padding: "32px 0" }}
-                />
-              ) : (
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns:
-                      "repeat(auto-fill, minmax(140px, 1fr))",
-                    gap: 12,
-                  }}
-                >
-                  {form_.media.map((m) => (
-                    <MediaCard
-                      key={m.id}
-                      item={m}
-                      isFinished={isFinished}
-                      onDelete={() => handleDeleteMedia(m.id)}
+                    {form_.media.map((m) => (
+                      <MediaCard
+                        key={m.id}
+                        item={m}
+                        isFinished={isFinished}
+                        onDelete={() => handleDeleteMedia(m.id)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </Card>
+            </Col>
+          </Row>
+
+          {/* ══════════════════════════════════════════
+              ── Previous Work Section (NEW) ──
+          ══════════════════════════════════════════ */}
+          <Card
+            bordered={false}
+            style={{
+              borderRadius: 16,
+              marginTop: 16,
+              border: "2px dashed #e07b1a22",
+              background: previousWork ? "#fffaf5" : "#fafafa",
+            }}
+            bodyStyle={{ padding: "20px 24px" }}
+            title={
+              <Space>
+                <SwapOutlined style={{ color: "#e07b1a", fontSize: 18 }} />
+                <Text strong style={{ fontSize: 15 }}>
+                  العمل السابق (قبل / بعد)
+                </Text>
+                {previousWork && (
+                  <Tag color="orange" style={{ borderRadius: 6 }}>
+                    مضاف
+                  </Tag>
+                )}
+              </Space>
+            }
+            extra={
+              <Space>
+                {previousWork && (
+                  <Popconfirm
+                    title="حذف العمل السابق؟"
+                    description="سيتم حذف صورتي قبل وبعد نهائياً."
+                    onConfirm={handleDeletePrevWork}
+                    okText="حذف"
+                    cancelText="إلغاء"
+                    okButtonProps={{ danger: true }}
+                  >
+                    <Button
+                      type="text"
+                      icon={<DeleteOutlined />}
+                      style={{ color: "#ff4d4f" }}
                     />
-                  ))}
-                </div>
-              )}
-            </Card>
-          </Col>
-        </Row>
+                  </Popconfirm>
+                )}
+                <Button
+                  type={previousWork ? "default" : "primary"}
+                  icon={previousWork ? <EditOutlined /> : <PlusOutlined />}
+                  onClick={openPrevWorkModal}
+                  style={
+                    previousWork
+                      ? { borderColor: "#e07b1a", color: "#e07b1a" }
+                      : { background: "#e07b1a", borderColor: "#e07b1a" }
+                  }
+                >
+                  {previousWork ? "تعديل" : "إضافة عمل سابق"}
+                </Button>
+              </Space>
+            }
+          >
+            {loadingPrevWork ? (
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "center",
+                  padding: "32px 0",
+                }}
+              >
+                <Spin />
+              </div>
+            ) : previousWork ? (
+              <Row gutter={[24, 16]}>
+                {/* Before */}
+                <Col xs={24} sm={12}>
+                  <div
+                    style={{
+                      borderRadius: 12,
+                      overflow: "hidden",
+                      border: "2px solid #ff4d4f33",
+                      background: "#fff1f0",
+                    }}
+                  >
+                    <div
+                      style={{
+                        background: "#ff4d4f",
+                        color: "#fff",
+                        fontSize: 12,
+                        fontWeight: 700,
+                        padding: "6px 14px",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                      }}
+                    >
+                      <span style={{ fontSize: 16 }}>⬤</span> قبل
+                    </div>
+                    <Image
+                      src={previousWork.before_image}
+                      alt="قبل"
+                      style={{
+                        width: "100%",
+                        maxHeight: 240,
+                        objectFit: "cover",
+                        display: "block",
+                      }}
+                      preview={{ mask: "عرض" }}
+                    />
+                  </div>
+                </Col>
+
+                {/* After */}
+                <Col xs={24} sm={12}>
+                  <div
+                    style={{
+                      borderRadius: 12,
+                      overflow: "hidden",
+                      border: "2px solid #52c41a33",
+                      background: "#f6ffed",
+                    }}
+                  >
+                    <div
+                      style={{
+                        background: "#52c41a",
+                        color: "#fff",
+                        fontSize: 12,
+                        fontWeight: 700,
+                        padding: "6px 14px",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                      }}
+                    >
+                      <span style={{ fontSize: 16 }}>⬤</span> بعد
+                    </div>
+                    <Image
+                      src={previousWork.after_image}
+                      alt="بعد"
+                      style={{
+                        width: "100%",
+                        maxHeight: 240,
+                        objectFit: "cover",
+                        display: "block",
+                      }}
+                      preview={{ mask: "عرض" }}
+                    />
+                  </div>
+                </Col>
+              </Row>
+            ) : (
+              <Empty
+                image={
+                  <SwapOutlined style={{ fontSize: 48, color: "#e07b1a44" }} />
+                }
+                description={
+                  <Text type="secondary" style={{ fontSize: 13 }}>
+                    لم يتم إضافة صور قبل/بعد بعد. اضغط "إضافة عمل سابق"
+                    لإضافتها.
+                  </Text>
+                }
+                style={{ padding: "24px 0" }}
+              />
+            )}
+          </Card>
+        </>
       )}
 
-      {/* Modal: Add Media */}
+      {/* ── Modal: Add Media ── */}
       <Modal
         title={
           <Space style={{ fontFamily: "'Cairo', sans-serif", fontWeight: 700 }}>
@@ -745,6 +1003,213 @@ export default function CompletionDetail() {
             }
           </Form.Item>
         </Form>
+      </Modal>
+
+      {/* ── Modal: Previous Work (NEW) ── */}
+      <Modal
+        title={
+          <Space style={{ fontFamily: "'Cairo', sans-serif", fontWeight: 700 }}>
+            <SwapOutlined style={{ color: "#e07b1a" }} />
+            {previousWork ? "تعديل العمل السابق" : "إضافة عمل سابق (قبل / بعد)"}
+          </Space>
+        }
+        open={prevWorkModal}
+        onOk={handleSavePrevWork}
+        onCancel={closePrevWorkModal}
+        okText={previousWork ? "حفظ التعديلات" : "إضافة"}
+        cancelText="إلغاء"
+        confirmLoading={savingPrevWork}
+        okButtonProps={{
+          style: { background: "#e07b1a", borderColor: "#e07b1a" },
+        }}
+        style={{ direction: "rtl", fontFamily: "'Cairo', sans-serif" }}
+        width={560}
+      >
+        <Row gutter={16} style={{ marginTop: 16 }}>
+          {/* Before Upload */}
+          <Col span={12}>
+            <Text
+              strong
+              style={{ display: "block", marginBottom: 8, color: "#ff4d4f" }}
+            >
+              ⬤ صورة قبل
+            </Text>
+            <div
+              style={{
+                border: "2px dashed #ff4d4f66",
+                borderRadius: 10,
+                overflow: "hidden",
+                cursor: "pointer",
+                background: "#fff1f0",
+                minHeight: 140,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                position: "relative",
+              }}
+              onClick={() => document.getElementById("before-input").click()}
+            >
+              {beforePreview ? (
+                <>
+                  <img
+                    src={beforePreview}
+                    alt="before"
+                    style={{
+                      width: "100%",
+                      height: 140,
+                      objectFit: "cover",
+                      display: "block",
+                    }}
+                  />
+                  <div
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      background: "rgba(0,0,0,0.35)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      opacity: 0,
+                      transition: "opacity 0.2s",
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.opacity = 1)}
+                    onMouseLeave={(e) => (e.currentTarget.style.opacity = 0)}
+                  >
+                    <Text style={{ color: "#fff", fontSize: 12 }}>
+                      تغيير الصورة
+                    </Text>
+                  </div>
+                </>
+              ) : (
+                <div
+                  style={{
+                    textAlign: "center",
+                    color: "#ff4d4f99",
+                    padding: 16,
+                  }}
+                >
+                  <InboxOutlined
+                    style={{ fontSize: 32, display: "block", marginBottom: 8 }}
+                  />
+                  <Text style={{ color: "#ff4d4f99", fontSize: 12 }}>
+                    اضغط لرفع صورة قبل
+                  </Text>
+                </div>
+              )}
+            </div>
+            <input
+              id="before-input"
+              type="file"
+              accept="image/*"
+              style={{ display: "none" }}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) {
+                  setBeforeFile(f);
+                  setBeforePreview(URL.createObjectURL(f));
+                }
+                e.target.value = "";
+              }}
+            />
+          </Col>
+
+          {/* After Upload */}
+          <Col span={12}>
+            <Text
+              strong
+              style={{ display: "block", marginBottom: 8, color: "#52c41a" }}
+            >
+              ⬤ صورة بعد
+            </Text>
+            <div
+              style={{
+                border: "2px dashed #52c41a66",
+                borderRadius: 10,
+                overflow: "hidden",
+                cursor: "pointer",
+                background: "#f6ffed",
+                minHeight: 140,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                position: "relative",
+              }}
+              onClick={() => document.getElementById("after-input").click()}
+            >
+              {afterPreview ? (
+                <>
+                  <img
+                    src={afterPreview}
+                    alt="after"
+                    style={{
+                      width: "100%",
+                      height: 140,
+                      objectFit: "cover",
+                      display: "block",
+                    }}
+                  />
+                  <div
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      background: "rgba(0,0,0,0.35)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      opacity: 0,
+                      transition: "opacity 0.2s",
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.opacity = 1)}
+                    onMouseLeave={(e) => (e.currentTarget.style.opacity = 0)}
+                  >
+                    <Text style={{ color: "#fff", fontSize: 12 }}>
+                      تغيير الصورة
+                    </Text>
+                  </div>
+                </>
+              ) : (
+                <div
+                  style={{
+                    textAlign: "center",
+                    color: "#52c41a99",
+                    padding: 16,
+                  }}
+                >
+                  <InboxOutlined
+                    style={{ fontSize: 32, display: "block", marginBottom: 8 }}
+                  />
+                  <Text style={{ color: "#52c41a99", fontSize: 12 }}>
+                    اضغط لرفع صورة بعد
+                  </Text>
+                </div>
+              )}
+            </div>
+            <input
+              id="after-input"
+              type="file"
+              accept="image/*"
+              style={{ display: "none" }}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) {
+                  setAfterFile(f);
+                  setAfterPreview(URL.createObjectURL(f));
+                }
+                e.target.value = "";
+              }}
+            />
+          </Col>
+        </Row>
+
+        {!previousWork && (
+          <Text
+            type="secondary"
+            style={{ fontSize: 12, display: "block", marginTop: 12 }}
+          >
+            * الصورتان مطلوبتان عند الإضافة لأول مرة. عند التعديل يمكنك تغيير
+            واحدة فقط.
+          </Text>
+        )}
       </Modal>
     </div>
   );
