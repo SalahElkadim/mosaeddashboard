@@ -19,7 +19,7 @@ import PaymentPage from "./pages/payment/PaymentPage.jsx";
 import PaymentCallback from "./pages/payment/PaymentCallback.jsx";
 import DueCollectionPage from "./pages/payment/DueCollectionPage.jsx";
 import DueCollectionCallback from "./pages/payment/DueCollectionCallback.jsx";
-import Payments from "./pages/Payments/index.jsx";
+import Payments from "./pages/payments";
 import Cities from "./pages/Cities";
 export default function App() {
   return (
@@ -36,17 +36,14 @@ export default function App() {
           }
         >
           <Route path="/dashboard" element={<Dashboard />} />
-
           <Route path="/specializations" element={<Specializations />} />
           <Route path="/providers" element={<Providers />} />
           <Route path="/providers/:id" element={<ProviderDetail />} />
           <Route path="/cities" element={<Cities />} />
           <Route path="/services" element={<Services />} />
           <Route path="/services/:id" element={<ServiceDetail />} />
-
           <Route path="/bookings" element={<Bookings />} />
           <Route path="/bookings/:id" element={<BookingDetail />} />
-
           <Route path="/completions" element={<Completions />} />
           <Route
             path="/completions/:bookingId"
@@ -54,11 +51,14 @@ export default function App() {
           />
           <Route path="/customers" element={<Customers />} />
           <Route path="/customers/:id" element={<CustomerDetail />} />
-          {/* Coupons ← جديد */}
           <Route path="/coupons" element={<Coupons />} />
+          {/* المدفوعات ← هنا جوه المجموعة المحمية، مش بره */}
+          <Route path="/payments-dashboard" element={<Payments />} />
         </Route>
-        <Route path="/payments-dashboard" element={<Payments />} />
+
         <Route path="*" element={<Navigate to="/login" replace />} />
+
+        {/* الروابط العامة (بره الحماية) بتاعة العميل/الفني نفسهم */}
         <Route path="/payments/:paymentRequestId" element={<PaymentPage />} />
         <Route
           path="/payments/:paymentRequestId/callback"
