@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { Table, Card, Tag, Button, Typography, message, Empty } from "antd";
 import { ReloadOutlined, LinkOutlined } from "@ant-design/icons";
-import api from "../../../api/axios";
+import api from "../../api/axios";
 
 const { Text } = Typography;
 

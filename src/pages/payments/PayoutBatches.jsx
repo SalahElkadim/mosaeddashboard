@@ -12,7 +12,7 @@ import {
   Empty,
 } from "antd";
 import { CheckCircleOutlined, ReloadOutlined } from "@ant-design/icons";
-import api from "../../../api/axios";
+import api from "../../api/axios";
 
 const { Text } = Typography;
 
