@@ -36,7 +36,7 @@ const menuItems = [
     icon: <FileProtectOutlined />,
     label: "إتمام الخدمات",
   },
-  { key: "/payments", icon: <DollarOutlined />, label: "المدفوعات" }, // ← جديد
+  { key: "/payments-dashboard", icon: <DollarOutlined />, label: "المدفوعات" },
   { key: "/coupons", icon: <TagsOutlined />, label: "كوبونات الخصم" },
 ];
 
