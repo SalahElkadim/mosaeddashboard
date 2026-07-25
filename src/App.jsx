@@ -19,7 +19,7 @@ import PaymentPage from "./pages/payment/PaymentPage.jsx";
 import PaymentCallback from "./pages/payment/PaymentCallback.jsx";
 import DueCollectionPage from "./pages/payment/DueCollectionPage.jsx";
 import DueCollectionCallback from "./pages/payment/DueCollectionCallback.jsx";
-import Payments from "./pages/Payments";
+import Payments from "./pages/Payments/index.jsx";
 import Cities from "./pages/Cities";
 export default function App() {
   return (
