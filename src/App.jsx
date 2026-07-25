@@ -15,10 +15,10 @@ import CompletionDetail from "./pages/Completions/Completiondetail.jsx";
 import Coupons from "./pages/Coupons"; 
 import Customers from "./pages/Customers";
 import CustomerDetail from "./pages/Customers/Customerdetail.jsx";
-import PaymentPage from "./pages/payments/payment/PaymentPage.jsx";
-import PaymentCallback from "./pages/payments/payment/PaymentCallback.jsx";
-import DueCollectionPage from "./pages/payments/payment/DueCollectionPage.jsx";
-import DueCollectionCallback from "./pages/payments/payment/DueCollectionCallback.jsx";
+import PaymentPage from "./pages/payment/PaymentPage.jsx";
+import PaymentCallback from "./pages/payment/PaymentCallback.jsx";
+import DueCollectionPage from "./pages/payment/DueCollectionPage.jsx";
+import DueCollectionCallback from "./pages/payment/DueCollectionCallback.jsx";
 import Payments from "./pages/Payments";
 import Cities from "./pages/Cities";
 export default function App() {
