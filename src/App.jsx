@@ -15,6 +15,11 @@ import CompletionDetail from "./pages/Completions/Completiondetail.jsx";
 import Coupons from "./pages/Coupons"; 
 import Customers from "./pages/Customers";
 import CustomerDetail from "./pages/Customers/Customerdetail.jsx";
+import PaymentPage from "./pages/payments/payment/PaymentPage.jsx";
+import PaymentCallback from "./pages/payments/payment/PaymentCallback.jsx";
+import DueCollectionPage from "./pages/payments/payment/DueCollectionPage.jsx";
+import DueCollectionCallback from "./pages/payments/payment/DueCollectionCallback.jsx";
+import Payments from "./pages/Payments";
 import Cities from "./pages/Cities";
 export default function App() {
   return (
@@ -52,8 +57,18 @@ export default function App() {
           {/* Coupons ← جديد */}
           <Route path="/coupons" element={<Coupons />} />
         </Route>
-
+        <Route path="/payments-dashboard" element={<Payments />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
+        <Route path="/payments/:paymentRequestId" element={<PaymentPage />} />
+        <Route
+          path="/payments/:paymentRequestId/callback"
+          element={<PaymentCallback />}
+        />
+        <Route path="/due-collection/:itemId" element={<DueCollectionPage />} />
+        <Route
+          path="/due-collection/:itemId/callback"
+          element={<DueCollectionCallback />}
+        />
       </Routes>
     </BrowserRouter>
   );

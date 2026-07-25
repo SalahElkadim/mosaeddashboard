@@ -14,7 +14,8 @@ import {
   FileProtectOutlined,
   TagsOutlined,
   UsergroupAddOutlined,
-  EnvironmentOutlined, // ← العملاء
+  EnvironmentOutlined,
+  DollarOutlined,
 } from "@ant-design/icons";
 import { useNavigate, useLocation, Outlet } from "react-router-dom";
 import api from "../../api/axios";
@@ -35,6 +36,7 @@ const menuItems = [
     icon: <FileProtectOutlined />,
     label: "إتمام الخدمات",
   },
+  { key: "/payments", icon: <DollarOutlined />, label: "المدفوعات" }, // ← جديد
   { key: "/coupons", icon: <TagsOutlined />, label: "كوبونات الخصم" },
 ];
 
