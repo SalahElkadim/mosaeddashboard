@@ -209,7 +209,7 @@ export default function MarketingCodes() {
             <Button
               size="small"
               icon={<BarChartOutlined />}
-              onClick={() => navigate(`/marketing-codes/${record.id}`)}
+              onClick={() => navigate(`/marketingcodedetail/${record.id}`)}
             />
           </Tooltip>
           <Tooltip title="تعديل">
