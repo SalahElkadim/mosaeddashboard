@@ -13,6 +13,8 @@ import BookingDetail from "./pages/Bookings/BookingDetail";
 import Completions from "./pages/Completions";
 import CompletionDetail from "./pages/Completions/Completiondetail.jsx";
 import Coupons from "./pages/Coupons"; 
+import MarketingCodes from "./pages/Marketing";
+import MarketingCodeDetail from "./pages/Marketing/MarketingCodeDetail.jsx";
 import Customers from "./pages/Customers";
 import CustomerDetail from "./pages/Customers/Customerdetail.jsx";
 import PaymentPage from "./pages/payment/PaymentPage.jsx";
@@ -52,7 +54,11 @@ export default function App() {
           <Route path="/customers" element={<Customers />} />
           <Route path="/customers/:id" element={<CustomerDetail />} />
           <Route path="/coupons" element={<Coupons />} />
-          {/* المدفوعات ← هنا جوه المجموعة المحمية، مش بره */}
+          <Route path="/marketingcodes" element={<MarketingCodes />} />
+          <Route
+            path="/marketingcodedetail"
+            element={<MarketingCodeDetail />}
+          />
           <Route path="/payments-dashboard" element={<Payments />} />
         </Route>
 

@@ -16,6 +16,7 @@ import {
   UsergroupAddOutlined,
   EnvironmentOutlined,
   DollarOutlined,
+  GiftOutlined,
 } from "@ant-design/icons";
 import { useNavigate, useLocation, Outlet } from "react-router-dom";
 import api from "../../api/axios";
@@ -37,6 +38,7 @@ const menuItems = [
     label: "إتمام الخدمات",
   },
   { key: "/payments-dashboard", icon: <DollarOutlined />, label: "المدفوعات" },
+  { key: "/marketingcodes", icon: <GiftOutlined />, label: "أكواد التسويق" },
   { key: "/coupons", icon: <TagsOutlined />, label: "كوبونات الخصم" },
 ];
 
