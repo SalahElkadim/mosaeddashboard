@@ -12,7 +12,6 @@ import {
   BellOutlined,
   ApartmentOutlined,
   FileProtectOutlined,
-  TagsOutlined,
   UsergroupAddOutlined,
   EnvironmentOutlined,
   DollarOutlined,
@@ -39,7 +38,6 @@ const menuItems = [
   },
   { key: "/payments-dashboard", icon: <DollarOutlined />, label: "المدفوعات" },
   { key: "/marketingcodes", icon: <GiftOutlined />, label: "أكواد التسويق" },
-  { key: "/coupons", icon: <TagsOutlined />, label: "كوبونات الخصم" },
 ];
 
 export default function AppLayout() {

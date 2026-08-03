@@ -14,6 +14,7 @@ import {
   Tooltip,
   Select,
   Modal,
+  InputNumber,
   Typography,
   Badge,
 } from "antd";
@@ -27,8 +28,9 @@ import {
   ClockCircleOutlined,
   SyncOutlined,
   EditOutlined,
-  TagOutlined,
   CarOutlined,
+  DollarOutlined,
+  HourglassOutlined,
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
@@ -37,15 +39,36 @@ const { Search } = Input;
 const { Text } = Typography;
 const { Option } = Select;
 
+// ── حالة الحجز ────────────────────────────────────────────
 const STATUS_MAP = {
   pending: {
     label: "قيد الانتظار",
     color: "orange",
     icon: <ClockCircleOutlined />,
   },
+  awaiting_price: {
+    label: "جاري التسعير",
+    color: "gold",
+    icon: <HourglassOutlined />,
+  },
+  price_proposed: {
+    label: "بانتظار موافقة العميل",
+    color: "purple",
+    icon: <DollarOutlined />,
+  },
   confirmed: { label: "مؤكد", color: "blue", icon: <SyncOutlined /> },
   completed: { label: "مكتمل", color: "green", icon: <CheckCircleOutlined /> },
   cancelled: { label: "ملغي", color: "red", icon: <CloseCircleOutlined /> },
+};
+
+// نفس الـ VALID_TRANSITIONS بتاعة الباكند
+const VALID_TRANSITIONS = {
+  pending: ["awaiting_price", "cancelled"],
+  awaiting_price: ["cancelled"],
+  price_proposed: [],
+  confirmed: ["completed", "cancelled"],
+  completed: [],
+  cancelled: [],
 };
 
 export default function Bookings() {
@@ -54,10 +77,18 @@ export default function Bookings() {
   const [loading, setLoading] = useState(false);
   const [searchText, setSearchText] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+
+  // Status modal
   const [statusModalOpen, setStatusModalOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [newStatus, setNewStatus] = useState("");
   const [updating, setUpdating] = useState(false);
+
+  // Set price modal
+  const [priceModalOpen, setPriceModalOpen] = useState(false);
+  const [priceBooking, setPriceBooking] = useState(null);
+  const [priceValue, setPriceValue] = useState(null);
+  const [settingPrice, setSettingPrice] = useState(false);
 
   const fetchBookings = async () => {
     setLoading(true);
@@ -77,13 +108,19 @@ export default function Bookings() {
     fetchBookings();
   }, [statusFilter]);
 
+  // ── Status ──────────────────────────────────────────────
   const openStatusModal = (booking) => {
+    const allowed = VALID_TRANSITIONS[booking.status] ?? [];
     setSelectedBooking(booking);
-    setNewStatus(booking.status);
+    setNewStatus(allowed[0] ?? "");
     setStatusModalOpen(true);
   };
 
   const handleUpdateStatus = async () => {
+    if (!newStatus) {
+      message.warning("اختر حالة جديدة");
+      return;
+    }
     try {
       setUpdating(true);
       await api.post(
@@ -93,8 +130,12 @@ export default function Bookings() {
       message.success("تم تحديث حالة الحجز بنجاح");
       setStatusModalOpen(false);
       fetchBookings();
-    } catch {
-      message.error("فشل تحديث الحالة");
+    } catch (err) {
+      message.error(
+        err?.response?.data?.status?.[0] ??
+          err?.response?.data?.error ??
+          "فشل تحديث الحالة"
+      );
     } finally {
       setUpdating(false);
     }
@@ -112,30 +153,59 @@ export default function Bookings() {
     }
   };
 
+  // ── Set Price ───────────────────────────────────────────
+  const openPriceModal = (booking) => {
+    setPriceBooking(booking);
+    setPriceValue(null);
+    setPriceModalOpen(true);
+  };
+
+  const handleSetPrice = async () => {
+    if (!priceValue || priceValue <= 0) {
+      message.warning("أدخل سعر صحيح");
+      return;
+    }
+    try {
+      setSettingPrice(true);
+      await api.post(
+        `/existedservices/admin/bookings/${priceBooking.id}/set-price/`,
+        { price: priceValue }
+      );
+      message.success("تم إرسال السعر للعميل بانتظار موافقته");
+      setPriceModalOpen(false);
+      fetchBookings();
+    } catch (err) {
+      message.error(
+        err?.response?.data?.price?.[0] ??
+          err?.response?.data?.error ??
+          "فشل تحديد السعر"
+      );
+    } finally {
+      setSettingPrice(false);
+    }
+  };
+
   const filtered = bookings.filter((b) => {
     const search = searchText.toLowerCase();
     return (
       (b.id ?? "").toString().includes(search) ||
       (b.customer_name ?? "").toLowerCase().includes(search) ||
       (b.service_title ?? "").toLowerCase().includes(search) ||
-      (b.provider_name ?? "").toLowerCase().includes(search) ||
-      (b.coupon_code ?? "").toLowerCase().includes(search)
+      (b.provider_name ?? "").toLowerCase().includes(search)
     );
   });
 
   const counts = {
     all: bookings.length,
     pending: bookings.filter((b) => b.status === "pending").length,
+    awaiting_price: bookings.filter((b) => b.status === "awaiting_price")
+      .length,
+    price_proposed: bookings.filter((b) => b.status === "price_proposed")
+      .length,
     confirmed: bookings.filter((b) => b.status === "confirmed").length,
     completed: bookings.filter((b) => b.status === "completed").length,
     cancelled: bookings.filter((b) => b.status === "cancelled").length,
   };
-
-  // إجمالي الخصومات على الحجوزات الكلها
-  const totalDiscount = bookings.reduce(
-    (sum, b) => sum + parseFloat(b.discount_amount ?? 0),
-    0
-  );
 
   const columns = [
     {
@@ -187,19 +257,17 @@ export default function Bookings() {
         </div>
       ),
     },
-    /* ─── عمود الخصم ─────────────────────────────────────── */
+    /* ─── عمود السعر ─────────────────────────────────────── */
     {
-      title: "التكلفة والخصم",
+      title: "السعر",
       key: "pricing",
       render: (_, r) => {
-        const hasDiscount =
-          r.coupon_code || parseFloat(r.discount_amount ?? 0) > 0;
         const visitCost = parseFloat(r.service_visit_cost ?? 0);
         const hasVisitCost = visitCost > 0;
+        const hasPrice = r.price != null;
 
         return (
           <div style={{ minWidth: 150 }}>
-            {/* تكلفة الزيارة */}
             {hasVisitCost && (
               <div style={{ marginBottom: 4 }}>
                 <Tag
@@ -212,52 +280,12 @@ export default function Bookings() {
               </div>
             )}
 
-            {hasDiscount ? (
-              <>
-                {/* كوبون الخصم */}
-                {r.coupon_code && (
-                  <div style={{ marginBottom: 4 }}>
-                    <Tag
-                      icon={<TagOutlined />}
-                      color="purple"
-                      style={{ borderRadius: 6, fontSize: 11 }}
-                    >
-                      {r.coupon_code}
-                    </Tag>
-                  </div>
-                )}
-
-                {/* السعر الأصلي مشطوب */}
-                <div>
-                  <Text delete type="secondary" style={{ fontSize: 12 }}>
-                    {parseFloat(r.total_cost ?? 0).toFixed(2)} ر.س
-                  </Text>
-                </div>
-
-                {/* قيمة الخصم */}
-                <div>
-                  <Text style={{ color: "#f5222d", fontSize: 12 }}>
-                    − {parseFloat(r.discount_amount ?? 0).toFixed(2)} ر.س
-                  </Text>
-                </div>
-
-                {/* السعر النهائي (خدمات + زيارة) */}
-                <div>
-                  <Text
-                    style={{ color: "#52c41a", fontWeight: 700, fontSize: 14 }}
-                  >
-                    {(
-                      parseFloat(r.final_cost ?? r.total_cost ?? 0) + visitCost
-                    ).toFixed(2)}{" "}
-                    ر.س
-                  </Text>
-                </div>
-              </>
-            ) : (
-              /* لا يوجد خصم */
-              <Text style={{ fontWeight: 600, fontSize: 14 }}>
-                {(parseFloat(r.total_cost ?? 0) + visitCost).toFixed(2)} ر.س
+            {hasPrice ? (
+              <Text style={{ color: "#52c41a", fontWeight: 700, fontSize: 14 }}>
+                {(parseFloat(r.price) + visitCost).toFixed(2)} ر.س
               </Text>
+            ) : (
+              <Tag color="gold">لم يُسعّر بعد</Tag>
             )}
           </div>
         );
@@ -291,45 +319,59 @@ export default function Bookings() {
       title: "الإجراءات",
       key: "actions",
       fixed: "left",
-      render: (_, r) => (
-        <Space size="small">
-          <Tooltip title="عرض التفاصيل">
-            <Button
-              type="text"
-              icon={<EyeOutlined />}
-              onClick={() => navigate(`/bookings/${r.id}`)}
-              style={{ color: "#1677ff" }}
-            />
-          </Tooltip>
-          <Tooltip title="تغيير الحالة">
-            <Button
-              type="text"
-              icon={<EditOutlined />}
-              onClick={() => openStatusModal(r)}
-              style={{ color: "#e07b1a" }}
-              disabled={r.status === "cancelled" || r.status === "completed"}
-            />
-          </Tooltip>
-          <Popconfirm
-            title="إلغاء الحجز؟"
-            description="سيتم تغيير حالة الحجز إلى ملغي."
-            onConfirm={() => handleDelete(r.id)}
-            okText="إلغاء الحجز"
-            cancelText="تراجع"
-            okButtonProps={{ danger: true }}
-            disabled={r.status === "cancelled"}
-          >
-            <Tooltip title="إلغاء الحجز">
+      render: (_, r) => {
+        const allowed = VALID_TRANSITIONS[r.status] ?? [];
+        const canCancel = allowed.includes("cancelled");
+        return (
+          <Space size="small">
+            <Tooltip title="عرض التفاصيل">
               <Button
                 type="text"
-                icon={<DeleteOutlined />}
-                style={{ color: r.status === "cancelled" ? "#ccc" : "#ff4d4f" }}
-                disabled={r.status === "cancelled"}
+                icon={<EyeOutlined />}
+                onClick={() => navigate(`/bookings/${r.id}`)}
+                style={{ color: "#1677ff" }}
               />
             </Tooltip>
-          </Popconfirm>
-        </Space>
-      ),
+            {r.status === "awaiting_price" && (
+              <Tooltip title="تحديد السعر">
+                <Button
+                  type="text"
+                  icon={<DollarOutlined />}
+                  onClick={() => openPriceModal(r)}
+                  style={{ color: "#0f1f1a" }}
+                />
+              </Tooltip>
+            )}
+            <Tooltip title="تغيير الحالة">
+              <Button
+                type="text"
+                icon={<EditOutlined />}
+                onClick={() => openStatusModal(r)}
+                style={{ color: "#e07b1a" }}
+                disabled={allowed.length === 0}
+              />
+            </Tooltip>
+            <Popconfirm
+              title="إلغاء الحجز؟"
+              description="سيتم تغيير حالة الحجز إلى ملغي."
+              onConfirm={() => handleDelete(r.id)}
+              okText="إلغاء الحجز"
+              cancelText="تراجع"
+              okButtonProps={{ danger: true }}
+              disabled={!canCancel}
+            >
+              <Tooltip title="إلغاء الحجز">
+                <Button
+                  type="text"
+                  icon={<DeleteOutlined />}
+                  style={{ color: canCancel ? "#ff4d4f" : "#ccc" }}
+                  disabled={!canCancel}
+                />
+              </Tooltip>
+            </Popconfirm>
+          </Space>
+        );
+      },
     },
   ];
 
@@ -347,6 +389,20 @@ export default function Bookings() {
       color: "#fa8c16",
       bg: "#fff7e6",
       icon: <ClockCircleOutlined />,
+    },
+    {
+      title: "جاري التسعير",
+      value: counts.awaiting_price,
+      color: "#d4b106",
+      bg: "#feffe6",
+      icon: <HourglassOutlined />,
+    },
+    {
+      title: "بانتظار موافقة العميل",
+      value: counts.price_proposed,
+      color: "#722ed1",
+      bg: "#f9f0ff",
+      icon: <DollarOutlined />,
     },
     {
       title: "مؤكدة",
@@ -368,14 +424,6 @@ export default function Bookings() {
       color: "#ff4d4f",
       bg: "#fff2f0",
       icon: <CloseCircleOutlined />,
-    },
-    {
-      title: "إجمالي الخصومات",
-      value: totalDiscount.toFixed(2),
-      suffix: " ر.س",
-      color: "#722ed1",
-      bg: "#f9f0ff",
-      icon: <TagOutlined />,
     },
   ];
 
@@ -403,7 +451,6 @@ export default function Bookings() {
                   <span style={{ color: "#666", fontSize: 12 }}>{s.title}</span>
                 }
                 value={s.value}
-                suffix={s.suffix}
                 valueStyle={{ color: s.color, fontWeight: 700, fontSize: 22 }}
                 prefix={
                   <span style={{ color: s.color, marginLeft: 6 }}>
@@ -445,41 +492,47 @@ export default function Bookings() {
           </h2>
           <Space wrap>
             <Search
-              placeholder="بحث برقم الحجز أو العميل أو الخدمة أو الكوبون..."
+              placeholder="بحث برقم الحجز أو العميل أو الخدمة..."
               allowClear
               style={{ width: 300 }}
               prefix={<SearchOutlined style={{ color: "#bbb" }} />}
               onChange={(e) => setSearchText(e.target.value)}
             />
-            <Space>
-              {["all", "pending", "confirmed", "completed", "cancelled"].map(
-                (f) => (
-                  <Button
-                    key={f}
-                    size="small"
-                    type={statusFilter === f ? "primary" : "default"}
-                    onClick={() => setStatusFilter(f)}
-                    style={
-                      statusFilter === f
-                        ? { background: "#0f1f1a", borderColor: "#0f1f1a" }
-                        : {}
-                    }
-                  >
-                    {f === "all" ? "الكل" : STATUS_MAP[f]?.label ?? f}
-                    {f !== "all" && (
-                      <Badge
-                        count={counts[f]}
-                        showZero
-                        style={{
-                          marginRight: 4,
-                          background: statusFilter === f ? "#e07b1a" : "#ccc",
-                          fontSize: 10,
-                        }}
-                      />
-                    )}
-                  </Button>
-                )
-              )}
+            <Space wrap>
+              {[
+                "all",
+                "pending",
+                "awaiting_price",
+                "price_proposed",
+                "confirmed",
+                "completed",
+                "cancelled",
+              ].map((f) => (
+                <Button
+                  key={f}
+                  size="small"
+                  type={statusFilter === f ? "primary" : "default"}
+                  onClick={() => setStatusFilter(f)}
+                  style={
+                    statusFilter === f
+                      ? { background: "#0f1f1a", borderColor: "#0f1f1a" }
+                      : {}
+                  }
+                >
+                  {f === "all" ? "الكل" : STATUS_MAP[f]?.label ?? f}
+                  {f !== "all" && (
+                    <Badge
+                      count={counts[f]}
+                      showZero
+                      style={{
+                        marginRight: 4,
+                        background: statusFilter === f ? "#e07b1a" : "#ccc",
+                        fontSize: 10,
+                      }}
+                    />
+                  )}
+                </Button>
+              ))}
             </Space>
           </Space>
         </div>
@@ -525,21 +578,70 @@ export default function Bookings() {
                 #{String(selectedBooking.id).slice(0, 8)}
               </strong>
             </div>
-            <Select
-              value={newStatus}
-              onChange={setNewStatus}
+            {(VALID_TRANSITIONS[selectedBooking.status] ?? []).length === 0 ? (
+              <Text type="secondary">
+                لا توجد انتقالات متاحة من الحالة الحالية.
+              </Text>
+            ) : (
+              <Select
+                value={newStatus}
+                onChange={setNewStatus}
+                style={{ width: "100%" }}
+                placeholder="اختر الحالة الجديدة"
+              >
+                {(VALID_TRANSITIONS[selectedBooking.status] ?? []).map(
+                  (key) => (
+                    <Option key={key} value={key}>
+                      <Space>
+                        {STATUS_MAP[key]?.icon}
+                        {STATUS_MAP[key]?.label ?? key}
+                      </Space>
+                    </Option>
+                  )
+                )}
+              </Select>
+            )}
+          </div>
+        )}
+      </Modal>
+
+      {/* Set Price Modal */}
+      <Modal
+        title={
+          <span style={{ fontFamily: "'Cairo', sans-serif", fontWeight: 700 }}>
+            تحديد سعر الحجز
+          </span>
+        }
+        open={priceModalOpen}
+        onOk={handleSetPrice}
+        onCancel={() => setPriceModalOpen(false)}
+        okText="إرسال السعر للعميل"
+        cancelText="إلغاء"
+        confirmLoading={settingPrice}
+        okButtonProps={{
+          style: { background: "#0f1f1a", borderColor: "#0f1f1a" },
+        }}
+        style={{ direction: "rtl", fontFamily: "'Cairo', sans-serif" }}
+      >
+        {priceBooking && (
+          <div style={{ marginTop: 16 }}>
+            <div style={{ marginBottom: 12, color: "#555" }}>
+              رقم الحجز:{" "}
+              <strong style={{ fontFamily: "monospace" }}>
+                #{String(priceBooking.id).slice(0, 8)}
+              </strong>
+            </div>
+            <div style={{ marginBottom: 8, color: "#333", fontWeight: 600 }}>
+              السعر (ر.س):
+            </div>
+            <InputNumber
+              min={0.01}
+              step={0.01}
+              value={priceValue}
+              onChange={setPriceValue}
               style={{ width: "100%" }}
-              placeholder="اختر الحالة الجديدة"
-            >
-              {Object.entries(STATUS_MAP).map(([key, val]) => (
-                <Option key={key} value={key}>
-                  <Space>
-                    {val.icon}
-                    {val.label}
-                  </Space>
-                </Option>
-              ))}
-            </Select>
+              placeholder="أدخل السعر"
+            />
           </div>
         )}
       </Modal>
