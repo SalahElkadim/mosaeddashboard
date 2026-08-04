@@ -73,6 +73,8 @@ const STATUS_STEPS = [
 ];
 
 // نفس الـ VALID_TRANSITIONS بتاعة الباكند (BookingStatusUpdateSerializer)
+// ملحوظة: price_proposed فاضية عمدًا هنا — الانتقال منها محجوز للعميل
+// عبر price-decision، أو للأدمن عبر AdminConfirmPriceOnBehalfView المنفصل
 const VALID_TRANSITIONS = {
   pending: ["awaiting_price", "cancelled"],
   awaiting_price: ["cancelled"],
@@ -104,6 +106,10 @@ export default function BookingDetail() {
   const [loadingProviders, setLoadingProviders] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState(null);
   const [assigning, setAssigning] = useState(false);
+
+  // Confirm price on behalf of customer modal
+  const [confirmPriceModalOpen, setConfirmPriceModalOpen] = useState(false);
+  const [confirmingPrice, setConfirmingPrice] = useState(false);
 
   const fetchBooking = async () => {
     setLoading(true);
@@ -237,6 +243,31 @@ export default function BookingDetail() {
     }
   };
 
+  // ── Confirm Price On Behalf Of Customer ─────────────────
+  // للحالات اللي العميل بيوافق/يرفض فيها تليفونيًا، والأدمن عايز
+  // يسجل القرار يدويًا بدل ما يستنى العميل يعمله من التطبيق.
+  const handleConfirmPriceOnBehalf = async (accept) => {
+    try {
+      setConfirmingPrice(true);
+      await api.post(`/existedservices/admin/bookings/${id}/confirm-price/`, {
+        accept,
+      });
+      message.success(
+        accept ? "تم تأكيد الحجز بالنيابة عن العميل" : "تم إلغاء الحجز"
+      );
+      setConfirmPriceModalOpen(false);
+      fetchBooking();
+    } catch (err) {
+      message.error(
+        err?.response?.data?.non_field_errors?.[0] ??
+          err?.response?.data?.error ??
+          "فشل تسجيل القرار"
+      );
+    } finally {
+      setConfirmingPrice(false);
+    }
+  };
+
   // ── Render ───────────────────────────────────────────────
   if (loading) {
     return (
@@ -276,6 +307,7 @@ export default function BookingDetail() {
   const canChangeStatus = allowedNextStatuses.length > 0;
   const canCancel = allowedNextStatuses.includes("cancelled");
   const canSetPrice = booking.status === "awaiting_price";
+  const canConfirmPriceOnBehalf = booking.status === "price_proposed";
   const canAssignProvider =
     booking.status !== "cancelled" && booking.status !== "completed";
 
@@ -334,6 +366,16 @@ export default function BookingDetail() {
               style={{ background: "#0f1f1a", borderColor: "#0f1f1a" }}
             >
               تحديد السعر
+            </Button>
+          )}
+          {canConfirmPriceOnBehalf && (
+            <Button
+              type="primary"
+              icon={<CheckCircleOutlined />}
+              onClick={() => setConfirmPriceModalOpen(true)}
+              style={{ background: "#52c41a", borderColor: "#52c41a" }}
+            >
+              تأكيد/رفض بالنيابة عن العميل
             </Button>
           )}
           {canChangeStatus && (
@@ -810,6 +852,61 @@ export default function BookingDetail() {
             style={{ width: "100%" }}
             placeholder="أدخل السعر"
           />
+        </div>
+      </Modal>
+
+      {/* Confirm Price On Behalf Of Customer Modal */}
+      <Modal
+        title={
+          <span style={{ fontFamily: "'Cairo', sans-serif", fontWeight: 700 }}>
+            تسجيل قرار العميل يدويًا
+          </span>
+        }
+        open={confirmPriceModalOpen}
+        onCancel={() => setConfirmPriceModalOpen(false)}
+        footer={null}
+        style={{ direction: "rtl", fontFamily: "'Cairo', sans-serif" }}
+      >
+        <div style={{ marginTop: 16 }}>
+          <Text type="secondary" style={{ display: "block", marginBottom: 20 }}>
+            استخدم ده لو العميل وافق أو رفض السعر تليفونيًا وعايز تسجل القرار
+            يدويًا بدل ما تستنى العميل يعمله من التطبيق.
+          </Text>
+          <Space
+            style={{ width: "100%", justifyContent: "center" }}
+            size="middle"
+          >
+            <Popconfirm
+              title="تأكيد موافقة العميل على السعر؟"
+              onConfirm={() => handleConfirmPriceOnBehalf(true)}
+              okText="تأكيد"
+              cancelText="تراجع"
+            >
+              <Button
+                type="primary"
+                icon={<CheckCircleOutlined />}
+                loading={confirmingPrice}
+                style={{ background: "#52c41a", borderColor: "#52c41a" }}
+              >
+                العميل وافق
+              </Button>
+            </Popconfirm>
+            <Popconfirm
+              title="تأكيد رفض العميل للسعر؟ الحجز هيتلغي."
+              onConfirm={() => handleConfirmPriceOnBehalf(false)}
+              okText="تأكيد الرفض"
+              cancelText="تراجع"
+              okButtonProps={{ danger: true }}
+            >
+              <Button
+                danger
+                icon={<CloseCircleOutlined />}
+                loading={confirmingPrice}
+              >
+                العميل رفض
+              </Button>
+            </Popconfirm>
+          </Space>
         </div>
       </Modal>
 
