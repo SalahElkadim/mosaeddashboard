@@ -43,7 +43,9 @@ export default function DueCollectionPage() {
     }
 
     axios
-      .get(`${process.env.REACT_APP_URL}/payments/due-collection/${itemId}/`)
+      .get(
+        `${process.env.REACT_APP_URL}/payments/payments/due-collection/${itemId}/`
+      )
       .then((res) => {
         const data = res.data;
         setItem(data);

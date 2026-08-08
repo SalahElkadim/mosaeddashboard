@@ -47,9 +47,12 @@ export default function PaymentPage() {
     }
 
     axios
-      .get(`${process.env.REACT_APP_URL}/payments/${paymentRequestId}/`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+      .get(
+        `${process.env.REACT_APP_URL}/payments/payments/${paymentRequestId}/`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      )
       .then((res) => {
         const pr = res.data;
         setPaymentRequest(pr);
@@ -85,7 +88,7 @@ export default function PaymentPage() {
       initializedRef.current = true;
 
       const callbackUrl =
-        `${window.location.origin}/payments/${paymentRequestId}/callback` +
+        `${window.location.origin}/payments/payments/${paymentRequestId}/callback` +
         `?token=${encodeURIComponent(token)}`;
 
       window.Moyasar.init({

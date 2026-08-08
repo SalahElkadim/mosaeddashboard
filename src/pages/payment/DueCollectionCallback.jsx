@@ -26,7 +26,7 @@ export default function DueCollectionCallback() {
 
     axios
       .post(
-        `${process.env.REACT_APP_URL}/payments/due-collection/${itemId}/callback/`,
+        `${process.env.REACT_APP_URL}/payments/payments/due-collection/${itemId}/callback/`,
         { id: paymentId }
       )
       .then((res) => {

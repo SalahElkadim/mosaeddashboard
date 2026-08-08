@@ -33,7 +33,7 @@ export default function PaymentCallback() {
 
     axios
       .post(
-        `${process.env.REACT_APP_URL}/payments/${paymentRequestId}/callback/`,
+        `${process.env.REACT_APP_URL}/payments/payments/${paymentRequestId}/callback/`,
         { id: paymentId },
         {
           headers: {
